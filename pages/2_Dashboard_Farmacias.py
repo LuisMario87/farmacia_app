@@ -28,7 +28,7 @@ ORDER BY v.fecha;
 
 # Bloquear acceso si no hay sesión
 if "usuario" not in st.session_state:
-    st.switch_page("login.py")
+    st.switch_page("streamlit_app.py")
 
 df = pd.read_sql(query, conn)
 conn.close()
@@ -195,6 +195,7 @@ st.sidebar.success(
 if st.sidebar.button("🚪 Cerrar sesión"):
     st.session_state.clear()
     st.switch_page("login.py")
+
 
 
 
