@@ -274,10 +274,21 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
             conn.rollback()
             st.error(e)
 
+
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+if st.sidebar.button("🚪 Cerrar sesión"):
+    st.session_state.clear()
+    st.switch_page("login.py")
+
 # ---------------------------------
 # CIERRE
 # ---------------------------------
 cursor.close()
 conn.close()
+
+
 
 
