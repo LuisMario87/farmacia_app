@@ -6,7 +6,7 @@ from utils.conexionASupabase import get_connection
 
 # Bloquear acceso si no hay sesión
 if "usuario" not in st.session_state:
-    st.switch_page("login.py")
+    st.switch_page("streamlit_app.py")
 st.title("👥 Gestión de Usuarios")
 
 # 🔒 Control de acceso
