@@ -12,15 +12,15 @@ st.title("📊 Dashboard de Ventas Farmacéuticas")
 conn = get_connection()
 
 query = """
-SELECT 
-    v.venta_id,
-    f.nombre AS farmacia,
-    v.ventas_totales,
-    v.tipo_registro,
-    v.fecha
+SELECT v.venta_id,
+       f.nombre AS farmacia,
+       f.ciudad,
+       v.ventas_totales,
+       v.tipo_registro,
+       v.fecha
 FROM ventas v
 JOIN farmacias f ON v.farmacia_id = f.farmacia_id
-ORDER BY v.fecha;
+
 """
 
 df = pd.read_sql(query, conn)
@@ -33,6 +33,9 @@ df["fecha"] = pd.to_datetime(df["fecha"])
 # ---------------------------------
 st.sidebar.header("🔎 Filtros")
 
+ciudades = ["Todas"] + sorted(df["ciudad"].dropna().unique().tolist())
+ciudad_sel = st.selectbox("Ciudad", ciudades)
+
 farmacias = ["Todas"] + sorted(df["farmacia"].unique().tolist())
 farmacia_sel = st.sidebar.selectbox("Farmacia", farmacias)
 
@@ -43,6 +46,9 @@ meses = ["Todos"] + sorted(df["fecha"].dt.month.unique().tolist())
 mes_sel = st.sidebar.selectbox("Mes", meses)
 
 df_filt = df.copy()
+
+if ciudad_sel != "Todas":
+    df_filt = df_filt[df_filt["ciudad"] == ciudad_sel]
 
 if farmacia_sel != "Todas":
     df_filt = df_filt[df_filt["farmacia"] == farmacia_sel]
@@ -180,3 +186,4 @@ if not df_filt.empty:
     )
 else:
     st.info("No hay datos para los filtros seleccionados")
+
