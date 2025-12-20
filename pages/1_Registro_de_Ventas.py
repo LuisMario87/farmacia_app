@@ -20,7 +20,7 @@ st.sidebar.success(
 
 # Bloquear acceso si no hay sesión
 if "usuario" not in st.session_state:
-    st.switch_page("login.py")
+    st.switch_page("streamlit_app.py")
 # ---------------------------------
 # FARMACIAS
 # ---------------------------------
@@ -288,6 +288,7 @@ if st.sidebar.button("🚪 Cerrar sesión"):
 # ---------------------------------
 cursor.close()
 conn.close()
+
 
 
 
