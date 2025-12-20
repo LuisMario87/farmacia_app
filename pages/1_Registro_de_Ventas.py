@@ -19,6 +19,7 @@ cursor.execute("SELECT farmacia_id, nombre FROM farmacias ORDER BY nombre;")
 farmacias = cursor.fetchall()
 farmacia_dict = {f[1]: f[0] for f in farmacias}
 farmacia_reverse = {f[0]: f[1] for f in farmacias}
+farmacia_nombres = list(farmacia_dict.keys())
 
 # =================================
 # MODO DE REGISTRO
@@ -55,7 +56,7 @@ if modo == "Registro Individual":
 
     st.subheader("🏥 Registro Individual")
 
-    farmacia_nombre = st.selectbox("Farmacia", farmacia_dict.keys())
+    farmacia_nombre = st.selectbox("Farmacia", farmacia_nombres)
     farmacia_id = farmacia_dict[farmacia_nombre]
 
     monto = st.number_input(
@@ -131,7 +132,7 @@ if modo == "Registro Personalizado":
 
     seleccionadas = st.multiselect(
         "Selecciona farmacias",
-        farmacia_dict.keys()
+        farmacia_nombres
     )
 
     registros = []
@@ -168,29 +169,54 @@ if modo == "Registro Personalizado":
             st.error(e)
 
 # =================================
-# EDICIÓN / ELIMINACIÓN (OCULTA)
+# EDICIÓN / ELIMINACIÓN
 # =================================
 st.divider()
 
-with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros recientes"):
+with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
 
-    cursor.execute("""
+    cantidad = st.selectbox(
+        "📄 Registros a mostrar",
+        ["Últimos 20", "Últimos 100", "Todos"]
+    )
+
+    if cantidad == "Últimos 20":
+        limit_sql = "LIMIT 20"
+    elif cantidad == "Últimos 100":
+        limit_sql = "LIMIT 100"
+    else:
+        limit_sql = ""
+
+    query = f"""
         SELECT v.venta_id, f.nombre, v.fecha, v.tipo_registro, v.ventas_totales
         FROM ventas v
         JOIN farmacias f ON v.farmacia_id = f.farmacia_id
         ORDER BY v.created_at DESC
-        LIMIT 10;
-    """)
+        {limit_sql};
+    """
+
+    cursor.execute(query)
 
     df_recent = pd.DataFrame(
         cursor.fetchall(),
         columns=["venta_id", "farmacia", "fecha", "tipo_registro", "monto"]
     )
 
+    # Column config para desplegables
     edited = st.data_editor(
         df_recent,
         use_container_width=True,
-        num_rows="fixed"
+        num_rows="fixed",
+        column_config={
+            "farmacia": st.column_config.SelectboxColumn(
+                "Farmacia",
+                options=farmacia_nombres
+            ),
+            "tipo_registro": st.column_config.SelectboxColumn(
+                "Tipo de registro",
+                options=["diario", "semanal", "mensual"]
+            )
+        }
     )
 
     if st.button("💾 Guardar cambios"):
@@ -213,7 +239,7 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros recie
                 ))
 
             conn.commit()
-            st.success("✅ Cambios guardados")
+            st.success("✅ Cambios guardados correctamente")
 
         except Exception as e:
             conn.rollback()
@@ -221,7 +247,10 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros recie
 
     st.subheader("🗑 Eliminar registro")
 
-    borrar_id = st.selectbox("ID a eliminar", df_recent["venta_id"])
+    borrar_id = st.selectbox(
+        "Selecciona el ID a eliminar",
+        df_recent["venta_id"]
+    )
 
     if st.button("❌ Eliminar"):
         try:
@@ -230,7 +259,7 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros recie
                 (borrar_id,)
             )
             conn.commit()
-            st.success("🗑 Registro eliminado")
+            st.success("🗑 Registro eliminado correctamente")
 
         except Exception as e:
             conn.rollback()
