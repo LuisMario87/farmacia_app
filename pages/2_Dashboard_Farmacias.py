@@ -3,12 +3,15 @@ import pandas as pd
 import plotly.express as px
 from utils.conexionASupabase import get_connection
 
+# --------------------------------------------------
+# CONFIGURACIÓN GENERAL
+# --------------------------------------------------
 st.set_page_config(page_title="Dashboard Farmacias", layout="wide")
 st.title("📊 Dashboard de Ventas Farmacéuticas")
 
-# ======================================================
+# --------------------------------------------------
 # CARGA DE DATOS
-# ======================================================
+# --------------------------------------------------
 conn = get_connection()
 
 query = """
@@ -27,36 +30,36 @@ ORDER BY v.fecha;
 df = pd.read_sql(query, conn)
 conn.close()
 
+# Convertir fecha
 df["fecha"] = pd.to_datetime(df["fecha"])
 
-# Columnas auxiliares SOLO para visualización
+# Columnas auxiliares (NO BD)
 df["anio"] = df["fecha"].dt.year
 df["mes"] = df["fecha"].dt.month
-df["mes_nombre"] = df["fecha"].dt.strftime("%B").str.capitalize()
 df["semana"] = df["fecha"].dt.isocalendar().week
 df["dia_semana"] = df["fecha"].dt.day_name(locale="es_ES")
-df["fecha_str"] = df["fecha"].dt.strftime("%d %B %Y")
+df["fecha_legible"] = df["fecha"].dt.strftime("%d %B %Y")
 
-# ======================================================
+# --------------------------------------------------
 # FILTROS
-# ======================================================
+# --------------------------------------------------
 st.subheader("🎛️ Filtros")
 
-col1, col2, col3 = st.columns(3)
+c1, c2, c3 = st.columns(3)
 
-with col1:
+with c1:
     ciudad_sel = st.selectbox(
         "Ciudad",
         ["Todas"] + sorted(df["ciudad"].unique())
     )
 
-with col2:
+with c2:
     farmacia_sel = st.selectbox(
         "Farmacia",
         ["Todas"] + sorted(df["farmacia"].unique())
     )
 
-with col3:
+with c3:
     anio_sel = st.selectbox(
         "Año",
         ["Todos"] + sorted(df["anio"].unique())
@@ -73,36 +76,36 @@ if farmacia_sel != "Todas":
 if anio_sel != "Todos":
     df_filt = df_filt[df_filt["anio"] == anio_sel]
 
-# ======================================================
-# KPIs GENERALES
-# ======================================================
+# --------------------------------------------------
+# KPIs
+# --------------------------------------------------
 st.divider()
 st.subheader("📌 KPIs Generales")
 
 ventas_totales = df_filt["ventas_totales"].sum()
-ventas_promedio = df_filt["ventas_totales"].mean()
+promedio_registro = df_filt["ventas_totales"].mean()
 
-c1, c2 = st.columns(2)
+k1, k2 = st.columns(2)
 
-c1.metric("💰 Ventas Totales", f"${ventas_totales:,.2f}")
-c2.metric("📊 Promedio por Registro", f"${ventas_promedio:,.2f}")
+k1.metric("💰 Ventas Totales", f"${ventas_totales:,.2f}")
+k2.metric("📊 Promedio por Registro", f"${promedio_registro:,.2f}")
 
-# ======================================================
+# --------------------------------------------------
 # SELECTOR DE TENDENCIA
-# ======================================================
+# --------------------------------------------------
 st.divider()
-st.subheader("📈 Tendencias")
+st.subheader("📈 Tendencia de Ventas")
 
-vista = st.radio(
-    "Tipo de visualización",
+tipo_vista = st.radio(
+    "Ver tendencia:",
     ["Diaria", "Semanal", "Mensual"],
     horizontal=True
 )
 
-# ======================================================
+# --------------------------------------------------
 # TENDENCIA DIARIA
-# ======================================================
-if vista == "Diaria":
+# --------------------------------------------------
+if tipo_vista == "Diaria":
 
     df_daily = (
         df_filt[df_filt["tipo_registro"] == "diario"]
@@ -111,10 +114,10 @@ if vista == "Diaria":
     )
 
     if df_daily.empty:
-        st.info("No hay datos diarios para los filtros seleccionados.")
+        st.info("No hay registros diarios para los filtros seleccionados.")
     else:
         df_daily["dia_semana"] = df_daily["fecha"].dt.day_name(locale="es_ES")
-        df_daily["fecha_str"] = df_daily["fecha"].dt.strftime("%d %B %Y")
+        df_daily["fecha_legible"] = df_daily["fecha"].dt.strftime("%d %B %Y")
 
         fig = px.line(
             df_daily,
@@ -126,19 +129,19 @@ if vista == "Diaria":
 
         fig.update_traces(
             hovertemplate=(
-                "<b>%{customdata[1]}</b><br>"
-                "📅 %{customdata[0]}<br>"
+                "<b>%{customdata[0]}</b><br>"
+                "📆 %{customdata[1]}<br>"
                 "💰 $%{y:,.2f}<extra></extra>"
             ),
-            customdata=df_daily[["dia_semana", "fecha_str"]]
+            customdata=df_daily[["dia_semana", "fecha_legible"]]
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
-# ======================================================
+# --------------------------------------------------
 # TENDENCIA SEMANAL
-# ======================================================
-elif vista == "Semanal":
+# --------------------------------------------------
+elif tipo_vista == "Semanal":
 
     df_weekly = (
         df_filt[df_filt["tipo_registro"] == "semanal"]
@@ -147,11 +150,11 @@ elif vista == "Semanal":
     )
 
     if df_weekly.empty:
-        st.info("No hay datos semanales para los filtros seleccionados.")
+        st.info("No hay registros semanales para los filtros seleccionados.")
     else:
         df_weekly["etiqueta"] = (
             "Semana " + df_weekly["semana"].astype(str)
-            + " - " + df_weekly["anio"].astype(str)
+            + " / " + df_weekly["anio"].astype(str)
         )
 
         fig = px.line(
@@ -171,9 +174,9 @@ elif vista == "Semanal":
 
         st.plotly_chart(fig, use_container_width=True)
 
-# ======================================================
+# --------------------------------------------------
 # TENDENCIA MENSUAL
-# ======================================================
+# --------------------------------------------------
 else:
 
     df_monthly = (
@@ -183,9 +186,9 @@ else:
     )
 
     if df_monthly.empty:
-        st.info("No hay datos mensuales para los filtros seleccionados.")
+        st.info("No hay registros mensuales para los filtros seleccionados.")
     else:
-        df_monthly["mes_nombre"] = pd.to_datetime(
+        df_monthly["mes_legible"] = pd.to_datetime(
             dict(
                 year=df_monthly["anio"],
                 month=df_monthly["mes"],
@@ -195,7 +198,7 @@ else:
 
         fig = px.line(
             df_monthly,
-            x="mes_nombre",
+            x="mes_legible",
             y="ventas_totales",
             markers=True,
             title="📆 Tendencia Mensual de Ventas"
@@ -210,11 +213,11 @@ else:
 
         st.plotly_chart(fig, use_container_width=True)
 
-# ======================================================
+# --------------------------------------------------
 # COMPARACIÓN ENTRE FARMACIAS
-# ======================================================
+# --------------------------------------------------
 st.divider()
-st.subheader("🏪 Comparación entre Farmacias")
+st.subheader("🏪 Ventas Totales por Farmacia")
 
 df_farma = (
     df_filt.groupby("farmacia")["ventas_totales"]
