@@ -1,6 +1,5 @@
 import streamlit as st
 from datetime import date
-import psycopg2
 from utils.conexionASupabase import get_connection
 
 st.set_page_config(page_title="Registro de Ventas", layout="wide")
@@ -41,11 +40,6 @@ fecha = st.date_input(
     max_value=date.today()
 )
 
-anio = fecha.year
-mes = fecha.month
-dia = fecha.day
-semana = (dia - 1) // 7 + 1  # Semana 1–4
-
 st.divider()
 
 # =================================
@@ -55,7 +49,10 @@ if modo == "Registro Individual":
 
     st.subheader("🏥 Registro Individual")
 
-    farmacia_nombre = st.selectbox("Selecciona la farmacia", farmacia_dict.keys())
+    farmacia_nombre = st.selectbox(
+        "Selecciona la farmacia",
+        list(farmacia_dict.keys())
+    )
     farmacia_id = farmacia_dict[farmacia_nombre]
 
     monto = st.number_input(
@@ -66,28 +63,27 @@ if modo == "Registro Individual":
     )
 
     if st.button("💾 Registrar Venta Individual"):
+
         if monto <= 0:
             st.error("❌ El monto debe ser mayor a 0.")
             st.stop()
 
         try:
             cursor.execute("""
-                INSERT INTO ventas (farmacia_id, ventas_totales, tipo_registro, semana, mes, anio)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO ventas (farmacia_id, ventas_totales, tipo_registro, fecha)
+                VALUES (%s, %s, %s, %s)
             """, (
                 farmacia_id,
                 monto,
                 tipo_registro,
-                semana if tipo_registro != "mensual" else None,
-                mes,
-                anio
+                fecha
             ))
 
             conn.commit()
             st.success(f"✅ Venta registrada para {farmacia_nombre}")
 
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"❌ Error al registrar venta: {e}")
 
 # =================================
 # 2️⃣ REGISTRO RÁPIDO (TODAS)
@@ -109,6 +105,7 @@ if modo == "Registro Rápido (Todas las farmacias)":
         )
 
     if st.button("💾 Registrar Ventas Masivas"):
+
         registros = []
 
         for fid, monto in ventas_rapidas.items():
@@ -117,9 +114,7 @@ if modo == "Registro Rápido (Todas las farmacias)":
                     fid,
                     monto,
                     tipo_registro,
-                    semana if tipo_registro != "mensual" else None,
-                    mes,
-                    anio
+                    fecha
                 ))
 
         if not registros:
@@ -128,15 +123,15 @@ if modo == "Registro Rápido (Todas las farmacias)":
 
         try:
             cursor.executemany("""
-                INSERT INTO ventas (farmacia_id, ventas_totales, tipo_registro, semana, mes, anio)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO ventas (farmacia_id, ventas_totales, tipo_registro, fecha)
+                VALUES (%s, %s, %s, %s)
             """, registros)
 
             conn.commit()
             st.success(f"✅ Se registraron {len(registros)} ventas correctamente")
 
         except Exception as e:
-            st.error(f"Error al registrar ventas: {e}")
+            st.error(f"❌ Error al registrar ventas: {e}")
 
 # ---------------------------------
 # CIERRE
