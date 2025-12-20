@@ -19,7 +19,7 @@ if "usuario" not in st.session_state:
     )
 # Si YA hay sesión, redirigir
 if "usuario" in st.session_state:
-    st.switch_page("pages/2_Dashboard.py")
+    st.switch_page("2_Dashboard_Farmacias.py")
 
 st.title("🔐 Sistema de Ventas Farmacéuticas")
 
@@ -53,5 +53,6 @@ if st.button("Ingresar"):
             st.error("❌ Contraseña incorrecta")
     else:
         st.error("❌ Usuario no encontrado")
+
 
 
