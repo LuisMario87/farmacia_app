@@ -7,7 +7,16 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed"  # 👈 IMPORTANTE
 )
-
+# Ocultar sidebar si no hay sesión
+if "usuario" not in st.session_state:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] { display: none; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 # Si YA hay sesión, redirigir
 if "usuario" in st.session_state:
     st.switch_page("pages/2_Dashboard.py")
@@ -44,4 +53,5 @@ if st.button("Ingresar"):
             st.error("❌ Contraseña incorrecta")
     else:
         st.error("❌ Usuario no encontrado")
+
 
