@@ -7,7 +7,9 @@ st.title("🏥 Gestión de Farmacias")
 
 conn = get_connection()
 cursor = conn.cursor()
-
+# Bloquear acceso si no hay sesión
+if "usuario" not in st.session_state:
+    st.switch_page("login.py")
 # ---------------------------------
 # CARGAR FARMACIAS
 # ---------------------------------
