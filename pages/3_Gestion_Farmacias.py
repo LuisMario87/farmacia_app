@@ -7,6 +7,13 @@ st.title("🏥 Gestión de Farmacias")
 
 conn = get_connection()
 cursor = conn.cursor()
+
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+
 # Bloquear acceso si no hay sesión
 if "usuario" not in st.session_state:
     st.switch_page("login.py")
