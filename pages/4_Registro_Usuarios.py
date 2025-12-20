@@ -2,10 +2,6 @@ import streamlit as st
 import bcrypt
 from utils.conexionASupabase import get_connection
 
-st.sidebar.success(
-    f"👤 {st.session_state['usuario']['nombre']}\n"
-    f"Rol: {st.session_state['usuario']['rol']}"
-)
 
 
 # Bloquear acceso si no hay sesión
@@ -51,3 +47,11 @@ if st.button("Crear usuario"):
     finally:
         cursor.close()
         conn.close()
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+if st.sidebar.button("🚪 Cerrar sesión"):
+    st.session_state.clear()
+    st.switch_page("login.py")
+
