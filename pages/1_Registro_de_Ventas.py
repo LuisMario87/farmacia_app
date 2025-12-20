@@ -12,6 +12,12 @@ st.title("📝 Registro de Ventas por Farmacia")
 conn = get_connection()
 cursor = conn.cursor()
 
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+
 # Bloquear acceso si no hay sesión
 if "usuario" not in st.session_state:
     st.switch_page("login.py")
@@ -273,4 +279,5 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
 # ---------------------------------
 cursor.close()
 conn.close()
+
 
