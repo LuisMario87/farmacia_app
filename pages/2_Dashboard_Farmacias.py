@@ -23,10 +23,7 @@ JOIN farmacias f ON v.farmacia_id = f.farmacia_id
 ORDER BY v.fecha;
 """
 
-st.sidebar.success(
-    f"👤 {st.session_state['usuario']['nombre']}\n"
-    f"Rol: {st.session_state['usuario']['rol']}"
-)
+
 
 
 # Bloquear acceso si no hay sesión
@@ -190,5 +187,15 @@ if not df_filt.empty:
     )
 else:
     st.info("No hay datos para los filtros seleccionados")
+
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+if st.sidebar.button("🚪 Cerrar sesión"):
+    st.session_state.clear()
+    st.switch_page("login.py")
+
+
 
 
