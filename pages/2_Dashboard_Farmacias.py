@@ -4,7 +4,7 @@ import plotly.express as px
 from utils.conexionASupabase import get_connection
 
 st.set_page_config(page_title="Dashboard Farmacias", layout="wide")
-st.title("📊 Dashboard de Ventas Farmacéuticas")
+st.title("📊 Dashboard de Ventas")
 
 # ---------------------------------
 # CARGA DE DATOS
@@ -104,7 +104,7 @@ c3.metric("📆 Promedio Mensual", f"${0 if pd.isna(prom_mensual) else prom_mens
 st.subheader("📈 Tendencia de Ventas")
 
 tipo_tendencia = st.selectbox(
-    "Selecciona la granularidad",
+    "Selecciona la venta",
     ["Diaria", "Semanal", "Mensual"]
 )
 
@@ -186,4 +186,5 @@ if not df_filt.empty:
     )
 else:
     st.info("No hay datos para los filtros seleccionados")
+
 
