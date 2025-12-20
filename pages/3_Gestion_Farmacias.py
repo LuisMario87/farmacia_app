@@ -133,9 +133,6 @@ else:
                 except Exception as e:
                     st.error(f"Error al eliminar: {e}")
 
-cursor.close()
-conn.close()
-
 st.sidebar.success(
     f"👤 {st.session_state['usuario']['nombre']}\n"
     f"Rol: {st.session_state['usuario']['rol']}"
@@ -143,4 +140,9 @@ st.sidebar.success(
 if st.sidebar.button("🚪 Cerrar sesión"):
     st.session_state.clear()
     st.switch_page("login.py")
+
+
+cursor.close()
+conn.close()
+
 
