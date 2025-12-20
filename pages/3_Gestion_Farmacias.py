@@ -8,10 +8,6 @@ st.title("🏥 Gestión de Farmacias")
 conn = get_connection()
 cursor = conn.cursor()
 
-st.sidebar.success(
-    f"👤 {st.session_state['usuario']['nombre']}\n"
-    f"Rol: {st.session_state['usuario']['rol']}"
-)
 
 
 # Bloquear acceso si no hay sesión
@@ -139,3 +135,12 @@ else:
 
 cursor.close()
 conn.close()
+
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+if st.sidebar.button("🚪 Cerrar sesión"):
+    st.session_state.clear()
+    st.switch_page("login.py")
+
