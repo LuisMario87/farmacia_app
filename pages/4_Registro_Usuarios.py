@@ -2,6 +2,12 @@ import streamlit as st
 import bcrypt
 from utils.conexionASupabase import get_connection
 
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+
 # Bloquear acceso si no hay sesión
 if "usuario" not in st.session_state:
     st.switch_page("login.py")
