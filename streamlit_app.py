@@ -2,7 +2,15 @@ import streamlit as st
 import bcrypt
 from utils.conexionASupabase import get_connection
 
-st.set_page_config(page_title="Login", layout="centered")
+st.set_page_config(
+    page_title="Sistema Farmacias",
+    layout="centered",
+    initial_sidebar_state="collapsed"  # 👈 IMPORTANTE
+)
+
+# Si YA hay sesión, redirigir
+if "usuario" in st.session_state:
+    st.switch_page("pages/2_Dashboard.py")
 
 st.title("🔐 Sistema de Ventas Farmacéuticas")
 
@@ -36,3 +44,4 @@ if st.button("Ingresar"):
             st.error("❌ Contraseña incorrecta")
     else:
         st.error("❌ Usuario no encontrado")
+
