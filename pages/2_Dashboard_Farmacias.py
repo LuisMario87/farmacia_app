@@ -61,6 +61,20 @@ if mes_sel != "Todos":
     df_filt = df_filt[df_filt["fecha"].dt.month == mes_sel]
 
 # ---------------------------------
+# PERIODO ANALIZADO (KPIs)
+# ---------------------------------
+if anio_sel == "Todos":
+    periodo_kpi = "Todos los años"
+elif mes_sel == "Todos":
+    periodo_kpi = f"Año {anio_sel}"
+else:
+    nombre_mes = pd.to_datetime(f"{anio_sel}-{mes_sel}-01").strftime("%B")
+    periodo_kpi = f"{nombre_mes.capitalize()} {anio_sel}"
+
+st.caption(f"📅 **Periodo analizado:** {periodo_kpi}")
+
+
+# ---------------------------------
 # KPI GENERAL
 # ---------------------------------
 ventas_totales = df_filt["ventas_totales"].sum()
@@ -120,21 +134,55 @@ if tipo_tendencia == "Diaria":
 
 elif tipo_tendencia == "Semanal":
     df_trend = (
-        df_filt.groupby(df_filt["fecha"].dt.to_period("W"))["ventas_totales"]
+        df_filt
+        .groupby(df_filt["fecha"].dt.to_period("W"))["ventas_totales"]
         .sum()
         .reset_index()
     )
-    df_trend["Fecha"] = df_trend["fecha"].astype(str)
+
+    df_trend["inicio_semana"] = df_trend["fecha"].apply(lambda x: x.start_time)
+    df_trend["fin_semana"] = df_trend["fecha"].apply(lambda x: x.end_time)
+
+    rango_inicio = df_trend["inicio_semana"].min()
+    rango_fin = df_trend["fin_semana"].max()
+
+    rango_texto = (
+        f"{rango_inicio.strftime('%A %d %B')} – "
+        f"{rango_fin.strftime('%A %d %B %Y')}"
+    )
+
+    st.caption(f"📅 **Periodo visualizado:** {rango_texto}")
+
+    df_trend["Fecha"] = df_trend["inicio_semana"]
     titulo = "Tendencia Semanal de Ventas"
+
 
 else:  # Mensual
     df_trend = (
-        df_filt.groupby(df_filt["fecha"].dt.to_period("M"))["ventas_totales"]
+        df_filt
+        .groupby(df_filt["fecha"].dt.to_period("M"))["ventas_totales"]
         .sum()
         .reset_index()
     )
-    df_trend["Fecha"] = df_trend["fecha"].astype(str)
+
+    df_trend["mes_inicio"] = df_trend["fecha"].dt.to_timestamp()
+
+    mes_inicio = df_trend["mes_inicio"].min()
+    mes_fin = df_trend["mes_inicio"].max()
+
+    if mes_inicio == mes_fin:
+        rango_texto = mes_inicio.strftime("%B %Y")
+    else:
+        rango_texto = (
+            f"{mes_inicio.strftime('%B %Y')} – "
+            f"{mes_fin.strftime('%B %Y')}"
+        )
+
+    st.caption(f"📅 **Periodo visualizado:** {rango_texto}")
+
+    df_trend["Fecha"] = df_trend["mes_inicio"]
     titulo = "Tendencia Mensual de Ventas"
+####Modificacion mensual arriba
 
 fig_trend = px.line(
     df_trend,
@@ -195,6 +243,7 @@ st.sidebar.success(
 if st.sidebar.button("🚪 Cerrar sesión"):
     st.session_state.clear()
     st.switch_page("login.py")
+
 
 
 
