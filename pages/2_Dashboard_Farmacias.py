@@ -191,6 +191,9 @@ else:
         text="Etiqueta",
         title="Tendencia Mensual"
     )
+st.plotly_chart(fig, use_container_width=True)
+
+
 
 # ---------------------------------
 # COMPARACIÓN ENTRE FARMACIAS
