@@ -3,6 +3,35 @@ import pandas as pd
 import plotly.express as px
 from utils.conexionASupabase import get_connection
 
+# ---------------------------------
+# TRADUCCIONES
+# ---------------------------------
+DIAS_ES = {
+    "Monday": "Lunes",
+    "Tuesday": "Martes",
+    "Wednesday": "Miércoles",
+    "Thursday": "Jueves",
+    "Friday": "Viernes",
+    "Saturday": "Sábado",
+    "Sunday": "Domingo"
+}
+
+MESES_ES = {
+    "January": "Enero",
+    "February": "Febrero",
+    "March": "Marzo",
+    "April": "Abril",
+    "May": "Mayo",
+    "June": "Junio",
+    "July": "Julio",
+    "August": "Agosto",
+    "September": "Septiembre",
+    "October": "Octubre",
+    "November": "Noviembre",
+    "December": "Diciembre"
+}
+
+
 st.set_page_config(page_title="Dashboard Farmacias", layout="wide")
 st.title("📊 Dashboard de Ventas Farmacéuticas")
 
@@ -155,14 +184,17 @@ elif tipo == "Semanal":
     df_trend["fin"] = df_trend["fecha"].apply(lambda x: x.end_time)
 
     df_trend["Etiqueta"] = (
-        "Semana " +
-        df_trend["inicio"].dt.isocalendar().week.astype(str) +
-        " (" +
-        df_trend["inicio"].dt.strftime("%d %b") +
-        " - " +
-        df_trend["fin"].dt.strftime("%d %b") +
-        ")"
-    )
+    "Semana " +
+    df_trend["inicio"].dt.isocalendar().week.astype(str) +
+    " (" +
+    df_trend["inicio"].dt.strftime("%d") + " " +
+    df_trend["inicio"].dt.strftime("%B").map(MESES_ES) +
+    " - " +
+    df_trend["fin"].dt.strftime("%d") + " " +
+    df_trend["fin"].dt.strftime("%B").map(MESES_ES) +
+    ")"
+)
+
 
     fig = px.line(
         df_trend,
@@ -181,7 +213,11 @@ else:
         .reset_index()
     )
 
-    df_trend["Etiqueta"] = df_trend["fecha"].dt.strftime("%B %Y")
+    df_trend["Etiqueta"] = (
+    df_trend["fecha"].dt.strftime("%B").map(MESES_ES)
+    + " " +
+    df_trend["fecha"].dt.strftime("%Y")
+    )
 
     fig = px.line(
         df_trend,
@@ -191,6 +227,11 @@ else:
         text="Etiqueta",
         title="Tendencia Mensual"
     )
+
+fig.update_traces(
+    textposition="top center"
+)
+
 st.plotly_chart(fig, use_container_width=True)
 
 
