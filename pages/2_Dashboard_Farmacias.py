@@ -160,7 +160,12 @@ if tipo == "Diaria":
         .reset_index()
     )
 
-    df_trend["Etiqueta"] = pd.to_datetime(df_trend["fecha"]).dt.strftime("%A")
+    df_trend["Etiqueta"] = (
+    pd.to_datetime(df_trend["fecha"])
+    .dt.strftime("%A")
+    .map(DIAS_ES)
+    )
+
     df_trend["Orden"] = pd.to_datetime(df_trend["fecha"])
 
     fig = px.line(
