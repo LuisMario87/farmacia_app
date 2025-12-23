@@ -167,6 +167,27 @@ if tipo == "Diaria":
     )
 
     df_trend["Orden"] = pd.to_datetime(df_trend["fecha"])
+    # ---------------------------------
+# INFORMACIÓN DE SEMANA (TENDENCIA DIARIA)
+# ---------------------------------
+if not df_trend.empty:
+    fecha_min = pd.to_datetime(df_trend["fecha"]).min()
+    fecha_max = pd.to_datetime(df_trend["fecha"]).max()
+
+    semana_num = fecha_min.isocalendar().week
+
+    dia_inicio = DIAS_ES[fecha_min.strftime("%A")]
+    dia_fin = DIAS_ES[fecha_max.strftime("%A")]
+
+    mes_inicio = MESES_ES[fecha_min.strftime("%B")]
+    mes_fin = MESES_ES[fecha_max.strftime("%B")]
+
+    st.caption(
+        f"📅 **Semana {semana_num}** — "
+        f"{dia_inicio} {fecha_min.day} {mes_inicio} {fecha_min.year} "
+        f"a "
+        f"{dia_fin} {fecha_max.day} {mes_fin} {fecha_max.year}"
+    )
 
     fig = px.line(
         df_trend,
