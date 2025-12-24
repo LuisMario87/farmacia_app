@@ -58,6 +58,11 @@ monto = st.number_input(
     format="%.2f"
 )
 
+descripcion = st.text_area(
+    "Descripción del gasto",
+    placeholder="Ej. Pago de renta de marzo, recibo CFE, compra de insumos, etc."
+)
+
 if st.button("💾 Registrar gasto"):
     if monto <= 0:
         st.error("❌ El monto debe ser mayor a 0")
@@ -65,9 +70,18 @@ if st.button("💾 Registrar gasto"):
 
     try:
         cursor.execute("""
-            INSERT INTO gastos (farmacia_id, monto, fecha, tipo_gasto, categoria)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (farmacia_id, monto, fecha, tipo_gasto, categoria))
+            INSERT INTO gastos (
+                farmacia_id, monto, fecha, tipo_gasto, categoria, descripcion
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            farmacia_id,
+            monto,
+            fecha,
+            tipo_gasto,
+            categoria,
+            descripcion
+        ))
 
         conn.commit()
         st.success("✅ Gasto registrado correctamente")
@@ -101,6 +115,7 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
             g.fecha,
             g.categoria,
             g.tipo_gasto,
+            g.descripcion,
             g.monto
         FROM gastos g
         JOIN farmacias f ON g.farmacia_id = f.farmacia_id
@@ -118,6 +133,7 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
             "fecha",
             "categoria",
             "tipo_gasto",
+            "descripcion",
             "monto"
         ]
     )
@@ -138,6 +154,9 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
             "tipo_gasto": st.column_config.SelectboxColumn(
                 "Tipo de gasto",
                 options=tipos_gasto
+            ),
+            "descripcion": st.column_config.TextColumn(
+                "Descripción"
             )
         }
     )
@@ -152,6 +171,7 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
                         fecha = %s,
                         categoria = %s,
                         tipo_gasto = %s,
+                        descripcion = %s,
                         monto = %s
                     WHERE gasto_id = %s
                 """, (
@@ -159,6 +179,7 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
                     r["fecha"],
                     r["categoria"],
                     r["tipo_gasto"],
+                    r["descripcion"],
                     r["monto"],
                     r["gasto_id"]
                 ))
