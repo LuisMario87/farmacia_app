@@ -36,7 +36,7 @@ st.set_page_config(page_title="Dashboard Farmacias", layout="wide")
 st.title("📊 Dashboard de Ventas Farmacéuticas")
 
 # ---------------------------------
-# CARGA DE DATOS
+# CARGA DE VENTAS
 # ---------------------------------
 conn = get_connection()
 
@@ -64,8 +64,35 @@ conn.close()
 
 df["fecha"] = pd.to_datetime(df["fecha"])
 
+
 # ---------------------------------
-# FILTROS
+# CARGA DE GASTOS
+# ---------------------------------
+conn = get_connection()
+
+query_gastos = """
+SELECT
+    g.gasto_id,
+    f.nombre AS farmacia,
+    g.monto,
+    g.fecha,
+    g.tipo_gasto,
+    g.categoria
+FROM gastos g
+JOIN farmacias f ON g.farmacia_id = f.farmacia_id
+ORDER BY g.fecha;
+"""
+
+df_gastos = pd.read_sql(query_gastos, conn)
+conn.close()
+
+df_gastos["fecha"] = pd.to_datetime(df_gastos["fecha"])
+
+
+
+
+# ---------------------------------
+# FILTROS DE VENTAS
 # ---------------------------------
 st.sidebar.header("🔎 Filtros")
 
@@ -89,6 +116,23 @@ if anio_sel != "Todos":
 if mes_sel != "Todos":
     df_filt = df_filt[df_filt["fecha"].dt.month == mes_sel]
 
+#####
+# FILTROS DE GASTOS
+#####
+
+df_gastos_filt = df_gastos.copy()
+
+if farmacia_sel != "Todas":
+    df_gastos_filt = df_gastos_filt[df_gastos_filt["farmacia"] == farmacia_sel]
+
+if anio_sel != "Todos":
+    df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.year == anio_sel]
+
+if mes_sel != "Todos":
+    df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_sel]
+
+
+
 # ---------------------------------
 # PERIODO ANALIZADO (KPIs)
 # ---------------------------------
@@ -104,10 +148,22 @@ st.caption(f"📅 **Periodo analizado:** {periodo_kpi}")
 
 
 # ---------------------------------
-# KPI GENERAL
+# KPI FINANCIEROS
 # ---------------------------------
 ventas_totales = df_filt["ventas_totales"].sum()
-st.metric("💰 Ventas Totales", f"${ventas_totales:,.2f}")
+gastos_totales = df_gastos_filt["monto"].sum()
+ventas_netas = ventas_totales - gastos_totales
+
+k1, k2, k3 = st.columns(3)
+
+k1.metric("💰 Ventas Brutas", f"${ventas_totales:,.2f}")
+k2.metric("💸 Gastos Totales", f"${gastos_totales:,.2f}")
+k3.metric("💵 Ventas Netas", f"${ventas_netas:,.2f}")
+
+if ventas_totales > 0:
+    margen = (ventas_netas / ventas_totales) * 100
+    st.caption(f"📊 Margen neto: **{margen:.2f}%**")
+
 
 # ---------------------------------
 # PROMEDIOS
@@ -282,6 +338,28 @@ fig_farma = px.bar(
 )
 
 st.plotly_chart(fig_farma, use_container_width=True)
+
+# ---------------------------------
+# GASTOS POR FARMACIA
+# ---------------------------------
+st.subheader("💸 Gastos Totales por Farmacia")
+
+df_gastos_farma = (
+    df_gastos_filt.groupby("farmacia")["monto"]
+    .sum()
+    .reset_index()
+    .sort_values("monto", ascending=False)
+)
+
+fig_gastos = px.bar(
+    df_gastos_farma,
+    x="farmacia",
+    y="monto",
+    title="Gastos Totales por Farmacia"
+)
+
+st.plotly_chart(fig_gastos, use_container_width=True)
+
 
 # ---------------------------------
 # TOP FARMACIA
