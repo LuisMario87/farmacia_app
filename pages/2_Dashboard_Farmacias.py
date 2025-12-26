@@ -164,6 +164,31 @@ if ventas_totales > 0:
     margen = (ventas_netas / ventas_totales) * 100
     st.caption(f"📊 Margen neto: **{margen:.2f}%**")
 
+st.subheader("💵 Utilidad por Farmacia")
+
+df_utilidad = (
+    df_filt.groupby("farmacia")["ventas_totales"].sum()
+    .reset_index()
+    .merge(
+        df_gastos_filt.groupby("farmacia")["monto"].sum().reset_index(),
+        on="farmacia",
+        how="left"
+    )
+)
+
+df_utilidad["monto"] = df_utilidad["monto"].fillna(0)
+df_utilidad["utilidad"] = df_utilidad["ventas_totales"] - df_utilidad["monto"]
+
+fig_utilidad = px.bar(
+    df_utilidad,
+    x="farmacia",
+    y="utilidad",
+    title="Utilidad Neta por Farmacia"
+)
+
+st.plotly_chart(fig_utilidad, use_container_width=True)
+
+
 
 # ---------------------------------
 # PROMEDIOS
@@ -217,33 +242,32 @@ if tipo == "Diaria":
     )
 
     df_trend["Etiqueta"] = (
-    pd.to_datetime(df_trend["fecha"])
-    .dt.strftime("%A")
-    .map(DIAS_ES)
+        pd.to_datetime(df_trend["fecha"])
+        .dt.strftime("%A")
+        .map(DIAS_ES)
     )
 
-    df_trend["Orden"] = pd.to_datetime(df_trend["fecha"])
-    # ---------------------------------
-# INFORMACIÓN DE SEMANA (TENDENCIA DIARIA)
-# ---------------------------------
-if not df_trend.empty:
-    fecha_min = pd.to_datetime(df_trend["fecha"]).min()
-    fecha_max = pd.to_datetime(df_trend["fecha"]).max()
+    df_filt["semana"] = df_filt["fecha"].dt.isocalendar().week
+    
+    
+    if not df_trend.empty:
+        fecha_min = pd.to_datetime(df_trend["fecha"]).min()
+        fecha_max = pd.to_datetime(df_trend["fecha"]).max()
 
-    semana_num = fecha_min.isocalendar().week
+        semana_num = fecha_min.isocalendar().week
 
-    dia_inicio = DIAS_ES[fecha_min.strftime("%A")]
-    dia_fin = DIAS_ES[fecha_max.strftime("%A")]
+        dia_inicio = DIAS_ES[fecha_min.strftime("%A")]
+        dia_fin = DIAS_ES[fecha_max.strftime("%A")]
 
-    mes_inicio = MESES_ES[fecha_min.strftime("%B")]
-    mes_fin = MESES_ES[fecha_max.strftime("%B")]
+        mes_inicio = MESES_ES[fecha_min.strftime("%B")]
+        mes_fin = MESES_ES[fecha_max.strftime("%B")]
 
-    st.caption(
-        f"📅 **Semana {semana_num}** — "
-        f"{dia_inicio} {fecha_min.day} {mes_inicio} {fecha_min.year} "
-        f"a "
-        f"{dia_fin} {fecha_max.day} {mes_fin} {fecha_max.year}"
-    )
+        st.caption(
+            f"📅 **Semana {semana_num}** — "
+            f"{dia_inicio} {fecha_min.day} {mes_inicio} {fecha_min.year} "
+            f"a "
+            f"{dia_fin} {fecha_max.day} {mes_fin} {fecha_max.year}"
+        )
 
     fig = px.line(
         df_trend,
@@ -253,7 +277,6 @@ if not df_trend.empty:
         text="Etiqueta",
         title="Tendencia Diaria (por día de la semana)"
     )
-
 # ===== SEMANAL =====
 elif tipo == "Semanal":
     df_trend = (
