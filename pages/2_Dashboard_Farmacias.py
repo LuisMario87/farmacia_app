@@ -224,7 +224,8 @@ c2.metric("🗓 Promedio Semanal", f"${0 if pd.isna(prom_semanal) else prom_sema
 c3.metric("📆 Promedio Mensual", f"${0 if pd.isna(prom_mensual) else prom_mensual:,.2f}")
 
 # ---------------------------------
-# TENDENCIA (DINÁMICA)
+# ---------------------------------
+# TENDENCIAS
 # ---------------------------------
 st.subheader("📈 Tendencia de Ventas")
 
@@ -233,10 +234,18 @@ tipo = st.selectbox(
     ["Diaria", "Semanal", "Mensual"]
 )
 
-# ===== DIARIA =====
+# ===== DIARIA (UNA SEMANA) =====
 if tipo == "Diaria":
+
+    df_filt["semana"] = df_filt["fecha"].dt.isocalendar().week
+    semanas = sorted(df_filt["semana"].unique())
+
+    semana_sel = st.selectbox("Semana", semanas)
+
+    df_semana = df_filt[df_filt["semana"] == semana_sel]
+
     df_trend = (
-        df_filt.groupby(df_filt["fecha"].dt.date)["ventas_totales"]
+        df_semana.groupby(df_semana["fecha"].dt.date)["ventas_totales"]
         .sum()
         .reset_index()
     )
@@ -247,27 +256,13 @@ if tipo == "Diaria":
         .map(DIAS_ES)
     )
 
-    df_filt["semana"] = df_filt["fecha"].dt.isocalendar().week
-    
-    
-    if not df_trend.empty:
-        fecha_min = pd.to_datetime(df_trend["fecha"]).min()
-        fecha_max = pd.to_datetime(df_trend["fecha"]).max()
+    fecha_min = df_semana["fecha"].min()
+    fecha_max = df_semana["fecha"].max()
 
-        semana_num = fecha_min.isocalendar().week
-
-        dia_inicio = DIAS_ES[fecha_min.strftime("%A")]
-        dia_fin = DIAS_ES[fecha_max.strftime("%A")]
-
-        mes_inicio = MESES_ES[fecha_min.strftime("%B")]
-        mes_fin = MESES_ES[fecha_max.strftime("%B")]
-
-        st.caption(
-            f"📅 **Semana {semana_num}** — "
-            f"{dia_inicio} {fecha_min.day} {mes_inicio} {fecha_min.year} "
-            f"a "
-            f"{dia_fin} {fecha_max.day} {mes_fin} {fecha_max.year}"
-        )
+    st.caption(
+        f"📅 Semana {semana_sel}: "
+        f"{fecha_min.strftime('%d %B %Y')} a {fecha_max.strftime('%d %B %Y')}"
+    )
 
     fig = px.line(
         df_trend,
@@ -275,10 +270,12 @@ if tipo == "Diaria":
         y="ventas_totales",
         markers=True,
         text="Etiqueta",
-        title="Tendencia Diaria (por día de la semana)"
+        title="Tendencia Diaria"
     )
-# ===== SEMANAL =====
+
+# ===== SEMANAL (DEL MES) =====
 elif tipo == "Semanal":
+
     df_trend = (
         df_filt.groupby(df_filt["fecha"].dt.to_period("W"))["ventas_totales"]
         .sum()
@@ -289,17 +286,14 @@ elif tipo == "Semanal":
     df_trend["fin"] = df_trend["fecha"].apply(lambda x: x.end_time)
 
     df_trend["Etiqueta"] = (
-    "Semana " +
-    df_trend["inicio"].dt.isocalendar().week.astype(str) +
-    " (" +
-    df_trend["inicio"].dt.strftime("%d") + " " +
-    df_trend["inicio"].dt.strftime("%B").map(MESES_ES) +
-    " - " +
-    df_trend["fin"].dt.strftime("%d") + " " +
-    df_trend["fin"].dt.strftime("%B").map(MESES_ES) +
-    ")"
-)
-
+        "Semana " +
+        df_trend["inicio"].dt.isocalendar().week.astype(str) +
+        " (" +
+        df_trend["inicio"].dt.strftime("%d %B").map(MESES_ES) +
+        " - " +
+        df_trend["fin"].dt.strftime("%d %B").map(MESES_ES) +
+        ")"
+    )
 
     fig = px.line(
         df_trend,
@@ -312,6 +306,7 @@ elif tipo == "Semanal":
 
 # ===== MENSUAL =====
 else:
+
     df_trend = (
         df_filt.groupby(df_filt["fecha"].dt.to_period("M"))["ventas_totales"]
         .sum()
@@ -319,9 +314,9 @@ else:
     )
 
     df_trend["Etiqueta"] = (
-    df_trend["fecha"].dt.strftime("%B").map(MESES_ES)
-    + " " +
-    df_trend["fecha"].dt.strftime("%Y")
+        df_trend["fecha"].dt.strftime("%B").map(MESES_ES)
+        + " " +
+        df_trend["fecha"].dt.strftime("%Y")
     )
 
     fig = px.line(
@@ -333,13 +328,8 @@ else:
         title="Tendencia Mensual"
     )
 
-fig.update_traces(
-    textposition="top center"
-)
-
+fig.update_traces(textposition="top center")
 st.plotly_chart(fig, use_container_width=True)
-
-
 
 # ---------------------------------
 # COMPARACIÓN ENTRE FARMACIAS
@@ -412,8 +402,4 @@ st.sidebar.success(
 if st.sidebar.button("🚪 Cerrar sesión"):
     st.session_state.clear()
     st.switch_page("login.py")
-
-
-
-
 
