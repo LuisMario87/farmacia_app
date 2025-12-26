@@ -237,31 +237,42 @@ tipo = st.selectbox(
 # ===== DIARIA (UNA SEMANA) =====
 if tipo == "Diaria":
 
-    df_filt["semana"] = df_filt["fecha"].dt.isocalendar().week
-    semanas = sorted(df_filt["semana"].unique())
+    # 🔹 Calcular semana del mes
+    df_filt["semana_mes"] = ((df_filt["fecha"].dt.day - 1) // 7) + 1
 
-    semana_sel = st.selectbox("Semana", semanas)
+    semanas_disponibles = sorted(df_filt["semana_mes"].unique())
 
-    df_semana = df_filt[df_filt["semana"] == semana_sel]
+    semana_sel = st.selectbox(
+        "Semana del mes",
+        semanas_disponibles
+    )
 
+    # 🔹 Filtrar SOLO esa semana
+    df_semana = df_filt[df_filt["semana_mes"] == semana_sel]
+
+    # 🔹 Agrupar por fecha (7 días máximo)
     df_trend = (
-        df_semana.groupby(df_semana["fecha"].dt.date)["ventas_totales"]
+        df_semana
+        .groupby(df_semana["fecha"].dt.date)["ventas_totales"]
         .sum()
         .reset_index()
     )
 
+    # 🔹 Etiquetas: día de la semana
     df_trend["Etiqueta"] = (
         pd.to_datetime(df_trend["fecha"])
         .dt.strftime("%A")
         .map(DIAS_ES)
     )
 
+    # 🔹 Rango visual
     fecha_min = df_semana["fecha"].min()
     fecha_max = df_semana["fecha"].max()
 
     st.caption(
-        f"📅 Semana {semana_sel}: "
-        f"{fecha_min.strftime('%d %B %Y')} a {fecha_max.strftime('%d %B %Y')}"
+        f"📅 **Semana {semana_sel} del mes** — "
+        f"{fecha_min.strftime('%d %B %Y')} a "
+        f"{fecha_max.strftime('%d %B %Y')}"
     )
 
     fig = px.line(
@@ -270,7 +281,7 @@ if tipo == "Diaria":
         y="ventas_totales",
         markers=True,
         text="Etiqueta",
-        title="Tendencia Diaria"
+        title="Tendencia Diaria (una semana)"
     )
 
 # ===== SEMANAL (DEL MES) =====
