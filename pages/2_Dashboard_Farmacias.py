@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from utils.conexionASupabase import get_connection
+from reports.reporte_financiero import generar_reporte_financiero
 
 # ---------------------------------
 # TRADUCCIONES
@@ -275,6 +276,40 @@ if not df_filt.empty:
     top = df_filt.groupby("farmacia")["ventas_totales"].sum().idxmax()
     total = df_filt.groupby("farmacia")["ventas_totales"].sum().max()
     st.success(f"🥇 {top} — ${total:,.2f}")
+
+# ---------------------------------
+# REPORTE DESCARGABLE
+# ---------------------------------
+
+# ---------------------------------
+# TEXTO DEL PERIODO (PARA REPORTES)
+# ---------------------------------
+if anio_sel == "Todos":
+    periodo_kpi = "Todos los años"
+elif mes_sel == "Todos":
+    periodo_kpi = f"Año {anio_sel}"
+else:
+    nombre_mes = pd.to_datetime(f"{anio_sel}-{mes_sel}-01").strftime("%B")
+    periodo_kpi = f"{nombre_mes.capitalize()} {anio_sel}"
+
+# Añadir farmacia si aplica
+if farmacia_sel != "Todas":
+    periodo_kpi = f"{farmacia_sel} — {periodo_kpi}"
+
+
+if st.button("📄 Generar Reporte PDF"):
+    pdf = generar_reporte_financiero(
+        df_filt,
+        df_gastos_filt,
+        periodo_kpi
+    )
+
+    st.download_button(
+        "⬇️ Descargar Reporte",
+        pdf,
+        file_name=f"reporte_financiero_{periodo_kpi}.pdf",
+        mime="application/pdf"
+    )
 
 # ---------------------------------
 # SIDEBAR
