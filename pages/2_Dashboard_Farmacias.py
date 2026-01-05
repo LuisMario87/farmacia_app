@@ -29,7 +29,10 @@ MESES_ES = {
     "September": "Septiembre",
     "October": "Octubre",
     "November": "Noviembre",
-    "December": "Diciembre"
+    "December": "Diciembre",
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
 
 # ---------------------------------
@@ -90,7 +93,8 @@ farmacia_sel = st.sidebar.selectbox("Farmacia", farmacias)
 anios = ["Todos"] + sorted(df["fecha"].dt.year.unique())
 anio_sel = st.sidebar.selectbox("Año", anios)
 
-meses = ["Todos"] + sorted(df["fecha"].dt.month.unique())
+meses = ["Todos"] + [
+    f"{m} - {MESES_ES[m]}" for m in sorted(df["fecha"].dt.month.unique())]
 mes_sel = st.sidebar.selectbox("Mes", meses)
 
 df_filt = df.copy()
@@ -105,8 +109,9 @@ if anio_sel != "Todos":
     df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.year == anio_sel]
 
 if mes_sel != "Todos":
-    df_filt = df_filt[df_filt["fecha"].dt.month == mes_sel]
-    df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_sel]
+    mes_num = int(mes_sel.split(" - ")[0])
+    df_filt = df_filt[df_filt["fecha"].dt.month == mes_num]
+    df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_num]
 
 # ---------------------------------
 # 1️⃣ ESTADO DE RESULTADOS
@@ -290,7 +295,7 @@ elif mes_sel == "Todos":
     periodo_kpi = f"Año {anio_sel}"
 else:
     nombre_mes = pd.to_datetime(f"{anio_sel}-{mes_sel}-01").strftime("%B")
-    periodo_kpi = f"{nombre_mes.capitalize()} {anio_sel}"
+    periodo_kpi = f"{MESES_ES[mes_num]} {anio_sel}"
 
 # Añadir farmacia si aplica
 if farmacia_sel != "Todas":
