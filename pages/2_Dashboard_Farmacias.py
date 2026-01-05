@@ -134,6 +134,39 @@ if mes_sel != "Todos":
 
 
 # ---------------------------------
+# ESTADO DE RESULTADOS
+# ---------------------------------
+st.subheader("🧾 Estado de Resultados")
+
+col1, col2, col3 = st.columns(3)
+
+ventas_total = df_filt["ventas_totales"].sum()
+gastos_total = df_gastos_filt["monto"].sum()
+utilidad = ventas_total - gastos_total
+
+with col1:
+    st.metric(
+        "Ventas Totales",
+        f"${ventas_total:,.0f}"
+    )
+
+with col2:
+    st.metric(
+        "Gastos Totales",
+        f"${gastos_total:,.0f}"
+    )
+
+with col3:
+    delta_color = "normal" if utilidad >= 0 else "inverse"
+    st.metric(
+        "Utilidad Operativa",
+        f"${utilidad:,.0f}",
+        delta=f"${utilidad:,.0f}",
+        delta_color=delta_color
+    )
+
+
+# ---------------------------------
 # PERIODO ANALIZADO (KPIs)
 # ---------------------------------
 if anio_sel == "Todos":
