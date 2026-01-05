@@ -164,6 +164,10 @@ with col3:
         delta=f"${utilidad:,.0f}",
         delta_color=delta_color
     )
+margen = (utilidad / ventas_total * 100) if ventas_total > 0 else 0
+
+st.caption(f"📈 Margen de utilidad: **{margen:.2f}%**")
+
 
 
 # ---------------------------------
