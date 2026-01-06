@@ -190,11 +190,28 @@ tipo = st.selectbox("Visualización", ["Diaria", "Semanal", "Mensual"])
 
 # ===== DIARIA (1 SEMANA) =====
 if tipo == "Diaria":
-
     df_filt["semana_mes"] = ((df_filt["fecha"].dt.day - 1) // 7) + 1
     semana_sel = st.selectbox("Semana del mes", sorted(df_filt["semana_mes"].unique()))
 
     df_semana = df_filt[df_filt["semana_mes"] == semana_sel]
+
+        # 🔹 Calcular rango real de fechas de la semana seleccionada
+    fecha_inicio = df_semana["fecha"].min()
+    fecha_fin = df_semana["fecha"].max()
+
+    # 🔹 Obtener nombres de día en español
+    dia_inicio = DIAS_ES[fecha_inicio.strftime("%A")]
+    dia_fin = DIAS_ES[fecha_fin.strftime("%A")]
+
+    mes_nombre = MESES_ES[fecha_inicio.month]
+
+    st.caption(
+        f"📅 **Periodo analizado:** "
+        f"{dia_inicio} {fecha_inicio.day} de {mes_nombre} de {fecha_inicio.year} "
+        f"a "
+        f"{dia_fin} {fecha_fin.day} de {mes_nombre} de {fecha_fin.year}"
+    )
+
 
     df_trend = (
         df_semana.groupby(df_semana["fecha"].dt.date)["ventas_totales"]
