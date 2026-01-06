@@ -94,9 +94,13 @@ anios = ["Todos"] + sorted(df["fecha"].dt.year.unique())
 anio_sel = st.sidebar.selectbox("Año", anios)
 
 meses = ["Todos"] + [
-    f"{m} - {MESES_ES[m]}" for m in sorted(df["fecha"].dt.month.unique())]
+    f"{m} - {MESES_ES[m]}" for m in sorted(df["fecha"].dt.month.unique())
+]
 mes_sel = st.sidebar.selectbox("Mes", meses)
 
+# ---------------------------------
+# FILTRADO
+# ---------------------------------
 df_filt = df.copy()
 df_gastos_filt = df_gastos.copy()
 
@@ -108,10 +112,26 @@ if anio_sel != "Todos":
     df_filt = df_filt[df_filt["fecha"].dt.year == anio_sel]
     df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.year == anio_sel]
 
+mes_num = None
 if mes_sel != "Todos":
     mes_num = int(mes_sel.split(" - ")[0])
     df_filt = df_filt[df_filt["fecha"].dt.month == mes_num]
     df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_num]
+
+# ---------------------------------
+# PERIODO ANALIZADO (VISIBLE)
+# ---------------------------------
+if anio_sel == "Todos":
+    periodo_kpi = "Todos los años"
+elif mes_sel == "Todos":
+    periodo_kpi = f"Año {anio_sel}"
+else:
+    periodo_kpi = f"{MESES_ES[mes_num]} {anio_sel}"
+
+if farmacia_sel != "Todas":
+    periodo_kpi = f"{farmacia_sel} — {periodo_kpi}"
+
+st.caption(f"📅 **Periodo analizado:** {periodo_kpi}")
 
 # ---------------------------------
 # 1️⃣ ESTADO DE RESULTADOS
@@ -286,22 +306,10 @@ if not df_filt.empty:
 # REPORTE DESCARGABLE
 # ---------------------------------
 
+
 # ---------------------------------
-# TEXTO DEL PERIODO (PARA REPORTES)
+# REPORTE PDF
 # ---------------------------------
-if anio_sel == "Todos":
-    periodo_kpi = "Todos los años"
-elif mes_sel == "Todos":
-    periodo_kpi = f"Año {anio_sel}"
-else:
-    nombre_mes = pd.to_datetime(f"{anio_sel}-{mes_sel}-01").strftime("%B")
-    periodo_kpi = f"{MESES_ES[mes_num]} {anio_sel}"
-
-# Añadir farmacia si aplica
-if farmacia_sel != "Todas":
-    periodo_kpi = f"{farmacia_sel} — {periodo_kpi}"
-
-
 if st.button("📄 Generar Reporte PDF"):
     pdf = generar_reporte_financiero(
         df_filt,
@@ -312,7 +320,7 @@ if st.button("📄 Generar Reporte PDF"):
     st.download_button(
         "⬇️ Descargar Reporte",
         pdf,
-        file_name=f"reporte_financiero_{periodo_kpi}.pdf",
+        file_name=f"reporte_financiero_{periodo_kpi.replace(' ', '_')}.pdf",
         mime="application/pdf"
     )
 
