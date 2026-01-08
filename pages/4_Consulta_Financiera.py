@@ -1,119 +1,179 @@
 import streamlit as st
 import pandas as pd
-from utils.conexionASupabase import get_connection
 
-st.set_page_config(page_title="Consulta Financiera", layout="wide")
 st.title("📄 Consulta Financiera")
 
-# Seguridad
-if "usuario" not in st.session_state:
-    st.switch_page("streamlit_app.py")
+st.caption(
+    "Consulta detallada de **ventas y gastos**, con búsqueda, filtros y paginación."
+)
 
-# -------------------------------
-# CARGA DE DATOS
-# -------------------------------
-conn = get_connection()
-
-df_ventas = pd.read_sql("""
-SELECT v.venta_id, f.nombre AS farmacia, v.fecha, v.ventas_totales
-FROM ventas v
-JOIN farmacias f ON v.farmacia_id = f.farmacia_id
-ORDER BY v.fecha DESC;
-""", conn)
-
-df_gastos = pd.read_sql("""
-SELECT g.gasto_id, f.nombre AS farmacia, g.fecha, g.monto, g.descripcion, g.categoria
-FROM gastos g
-JOIN farmacias f ON g.farmacia_id = f.farmacia_id
-ORDER BY g.fecha DESC;
-""", conn)
-
-conn.close()
-
-df_ventas["fecha"] = pd.to_datetime(df_ventas["fecha"])
-df_gastos["fecha"] = pd.to_datetime(df_gastos["fecha"])
-
-# -------------------------------
-# FILTROS
-#------------------------------
-
-st.sidebar.header("🔎 Filtros")
-
-farmacias = ["Todas"] + sorted(df_ventas["farmacia"].unique())
-farmacia_sel = st.sidebar.selectbox("Farmacia", farmacias)
-
-anios = ["Todos"] + sorted(df_ventas["fecha"].dt.year.unique())
-anio_sel = st.sidebar.selectbox("Año", anios)
-
-meses = ["Todos"] + list(range(1, 13))
-mes_sel = st.sidebar.selectbox("Mes", meses)
-
-def aplicar_filtros(df):
-    if farmacia_sel != "Todas":
-        df = df[df["farmacia"] == farmacia_sel]
-    if anio_sel != "Todos":
-        df = df[df["fecha"].dt.year == anio_sel]
-    if mes_sel != "Todos":
-        df = df[df["fecha"].dt.month == mes_sel]
-    return df
-
-df_ventas_filt = aplicar_filtros(df_ventas)
-df_gastos_filt = aplicar_filtros(df_gastos)
-# -------------------------------
-# VISUALIZACIÓN DE DATOS    
-# -------------------------------
-
+# ===============================
+# TABS
+# ===============================
 tab_ventas, tab_gastos, tab_resumen = st.tabs(
     ["🟢 Ventas", "🔴 Gastos", "🔵 Resumen"]
 )
 
+# ======================================================
+# 🟢 TAB VENTAS
+# ======================================================
 with tab_ventas:
-    st.subheader("🟢 Ventas Registradas")
+    st.subheader("🟢 Ventas registradas")
 
-    st.metric(
-        "Total Ventas",
-        f"${df_ventas_filt['ventas_totales'].sum():,.2f}"
+    # -------- Barra de herramientas
+    col1, col2, col3 = st.columns([2, 1, 1])
+
+    with col1:
+        busqueda_venta = st.text_input(
+            "🔍 Buscar por farmacia",
+            placeholder="Ej. Farmacia Matías"
+        )
+
+    with col2:
+        page_size_v = st.selectbox(
+            "Registros por página",
+            [10, 20, 50],
+            key="ventas_page_size"
+        )
+
+    with col3:
+        st.metric(
+            "Total visible",
+            f"${df_ventas_filt['ventas_totales'].sum():,.0f}"
+        )
+
+    # -------- Filtro de búsqueda
+    df_v = df_ventas_filt.copy()
+
+    if busqueda_venta:
+        df_v = df_v[
+            df_v["farmacia"]
+            .str.contains(busqueda_venta, case=False, na=False)
+        ]
+
+    # -------- Orden lógico
+    df_v = df_v.sort_values("fecha", ascending=False)
+
+    # -------- Paginación
+    total_rows = len(df_v)
+    total_pages = max(1, (total_rows - 1) // page_size_v + 1)
+
+    page_v = st.number_input(
+        "Página",
+        min_value=1,
+        max_value=total_pages,
+        value=1,
+        step=1,
+        key="ventas_page"
     )
 
+    start = (page_v - 1) * page_size_v
+    end = start + page_size_v
+
+    # -------- Tabla
     st.dataframe(
-        df_ventas_filt,
-        use_container_width=True
+        df_v.iloc[start:end],
+        use_container_width=True,
+        hide_index=True
     )
 
-    # Exportar
-    st.download_button(
-        "⬇️ Descargar Ventas (CSV)",
-        df_ventas_filt.to_csv(index=False),
-        file_name="ventas.csv",
-        mime="text/csv"
-    )
+    st.caption(f"Página {page_v} de {total_pages}")
 
+# ======================================================
+# 🔴 TAB GASTOS
+# ======================================================
 with tab_gastos:
-    st.subheader("🔴 Gastos Registrados")
+    st.subheader("🔴 Gastos registrados")
+
+    # -------- Barra de herramientas
+    c1, c2, c3 = st.columns([2, 1, 1])
+
+    with c1:
+        buscar_desc = st.text_input(
+            "🔍 Buscar en descripción",
+            placeholder="Ej. Luz, renta, proveedor..."
+        )
+
+    with c2:
+        categorias = (
+            ["Todas"]
+            + sorted(df_gastos_filt["categoria"].dropna().unique())
+        )
+        categoria_sel = st.selectbox("Categoría", categorias)
+
+    with c3:
+        page_size_g = st.selectbox(
+            "Registros por página",
+            [10, 20, 50],
+            key="gastos_page_size"
+        )
+
+    # -------- Filtros
+    df_g = df_gastos_filt.copy()
+
+    if buscar_desc:
+        df_g = df_g[
+            df_g["descripcion"]
+            .str.contains(buscar_desc, case=False, na=False)
+        ]
+
+    if categoria_sel != "Todas":
+        df_g = df_g[df_g["categoria"] == categoria_sel]
+
+    # -------- Orden lógico
+    df_g = df_g.sort_values("fecha", ascending=False)
+
+    # -------- Paginación
+    total_rows = len(df_g)
+    total_pages = max(1, (total_rows - 1) // page_size_g + 1)
+
+    page_g = st.number_input(
+        "Página",
+        min_value=1,
+        max_value=total_pages,
+        value=1,
+        step=1,
+        key="gastos_page"
+    )
+
+    start = (page_g - 1) * page_size_g
+    end = start + page_size_g
+
+    # -------- Tabla
+    st.dataframe(
+        df_g.iloc[start:end],
+        use_container_width=True,
+        hide_index=True
+    )
 
     st.metric(
-        "Total Gastos",
-        f"${df_gastos_filt['monto'].sum():,.2f}"
+        "Total gastos visibles",
+        f"${df_g['monto'].sum():,.2f}"
     )
 
-    st.dataframe(
-        df_gastos_filt,
-        use_container_width=True
-    )
+    st.caption(f"Página {page_g} de {total_pages}")
 
-    st.download_button(
-        "⬇️ Descargar Gastos (CSV)",
-        df_gastos_filt.to_csv(index=False),
-        file_name="gastos.csv",
-        mime="text/csv"
-    )
-
+# ======================================================
+# 🔵 TAB RESUMEN
+# ======================================================
 with tab_resumen:
-    ventas = df_ventas_filt["ventas_totales"].sum()
-    gastos = df_gastos_filt["monto"].sum()
-    utilidad = ventas - gastos
+    st.subheader("🔵 Resumen financiero")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Ventas", f"${ventas:,.2f}")
-    c2.metric("Gastos", f"${gastos:,.2f}")
-    c3.metric("Utilidad", f"${utilidad:,.2f}")
+    ventas_total = df_ventas_filt["ventas_totales"].sum()
+    gastos_total = df_gastos_filt["monto"].sum()
+    utilidad = ventas_total - gastos_total
+
+    st.markdown(
+        f"""
+        ### 📊 Totales del periodo seleccionado
+
+        - 🟢 **Ventas totales:** ${ventas_total:,.2f}
+        - 🔴 **Gastos totales:** ${gastos_total:,.2f}
+        - 🔵 **Utilidad:** ${utilidad:,.2f}
+        """
+    )
+
+    st.info(
+        "Este resumen sirve como referencia rápida. "
+        "El análisis principal se realiza en el Dashboard."
+    )
