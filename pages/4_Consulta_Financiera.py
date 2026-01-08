@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from utils.conexionASupabase import get_connection
-
+from reports.pdf_gastos import generar_pdf_gastos
 # ===============================
 # CONFIG
 # ===============================
@@ -51,6 +51,29 @@ df_ventas["fecha"] = pd.to_datetime(df_ventas["fecha"])
 df_gastos["fecha"] = pd.to_datetime(df_gastos["fecha"])
 
 # ===============================
+# TRADUCCIONES MES
+# ===============================
+
+MESES_ES = {
+    "January": "Enero",
+    "February": "Febrero",
+    "March": "Marzo",
+    "April": "Abril",
+    "May": "Mayo",
+    "June": "Junio",
+    "July": "Julio",
+    "August": "Agosto",
+    "September": "Septiembre",
+    "October": "Octubre",
+    "November": "Noviembre",
+    "December": "Diciembre",
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+}
+
+
+# ===============================
 # FILTROS
 # ===============================
 st.sidebar.header("🔎 Filtros")
@@ -81,6 +104,41 @@ if anio_sel != "Todos":
 if mes_sel != "Todos":
     df_ventas_filt = df_ventas_filt[df_ventas_filt["fecha"].dt.month == mes_sel]
     df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_sel]
+
+# ---------------------------------
+# FILTRADO
+# ---------------------------------
+df_filt = df_ventas.copy()
+df_gastos_filt = df_gastos.copy()
+
+if farmacia_sel != "Todas":
+    df_filt = df_filt[df_filt["farmacia"] == farmacia_sel]
+    df_gastos_filt = df_gastos_filt[df_gastos_filt["farmacia"] == farmacia_sel]
+
+if anio_sel != "Todos":
+    df_filt = df_filt[df_filt["fecha"].dt.year == anio_sel]
+    df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.year == anio_sel]
+
+mes_num = None
+if mes_sel != "Todos":
+    mes_num = int(mes_sel.split(" - ")[0])
+    df_filt = df_filt[df_filt["fecha"].dt.month == mes_num]
+    df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_num]
+
+# ---------------------------------
+# PERIODO ANALIZADO (VISIBLE)
+# ---------------------------------
+if anio_sel == "Todos":
+    periodo_kpi = "Todos los años"
+elif mes_sel == "Todos":
+    periodo_kpi = f"Año {anio_sel}"
+else:
+    periodo_kpi = f"{MESES_ES[mes_num]} {anio_sel}"
+
+if farmacia_sel != "Todas":
+    periodo_kpi = f"{farmacia_sel} — {periodo_kpi}"
+
+st.caption(f"📅 **Periodo analizado:** {periodo_kpi}")
 
 # ===============================
 # TABS
@@ -176,6 +234,20 @@ with tab_gastos:
     st.dataframe(df_g.iloc[start:end], use_container_width=True, hide_index=True)
 
     st.caption(f"Página {page} de {total_pages}")
+
+    if st.button("📄 Descargar Reporte de Gastos (PDF)"):
+        pdf = generar_pdf_gastos(
+            df_gastos_filt,
+            periodo_kpi,
+            farmacia_sel
+        )
+
+    st.download_button(
+        "⬇️ Descargar PDF",
+        pdf,
+        file_name="reporte_gastos.pdf",
+        mime="application/pdf"
+    )
 
 # ===============================
 # 🔵 RESUMEN
