@@ -1,13 +1,14 @@
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 )
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib import colors
 from reportlab.lib.units import cm
 from datetime import datetime
-import io
 import pandas as pd
+import io
 
 
 def generar_pdf_gastos(df_gastos, periodo, farmacia):
@@ -23,125 +24,126 @@ def generar_pdf_gastos(df_gastos, periodo, farmacia):
     )
 
     styles = getSampleStyleSheet()
+
+    styles.add(ParagraphStyle(
+        name="Titulo",
+        fontSize=20,
+        alignment=TA_CENTER,
+        spaceAfter=20
+    ))
+
+    styles.add(ParagraphStyle(
+        name="Subtitulo",
+        fontSize=12,
+        alignment=TA_CENTER,
+        textColor=colors.grey
+    ))
+
+    styles.add(ParagraphStyle(
+        name="Encabezado",
+        fontSize=11,
+        spaceAfter=6,
+        leading=14,
+        fontName="Helvetica-Bold"
+    ))
+
+    styles.add(ParagraphStyle(
+        name="Derecha",
+        alignment=TA_RIGHT
+    ))
+
+    styles.add(ParagraphStyle(
+        name="Descripcion",
+        fontSize=9,
+        leading=12
+    ))
+
     elementos = []
 
-    # -----------------------------
+    # ===============================
     # PORTADA
-    # -----------------------------
-    elementos.append(Spacer(1, 3 * cm))
-    elementos.append(Paragraph("<b>Farmacias GI</b>", styles["Title"]))
+    # ===============================
+    elementos.append(Paragraph("Farmacias GI", styles["Titulo"]))
+    elementos.append(Paragraph("Reporte de Gastos", styles["Subtitulo"]))
     elementos.append(Spacer(1, 12))
-    elementos.append(Paragraph("Reporte de Gastos", styles["Title"]))
-    elementos.append(Spacer(1, 24))
 
     elementos.append(Paragraph(f"<b>Periodo:</b> {periodo}", styles["Normal"]))
-    elementos.append(Paragraph(f"<b>Farmacia:</b> {farmacia}", styles["Normal"]))
-    elementos.append(
-        Paragraph(
-            f"<b>Fecha de generación:</b> {datetime.now().strftime('%d/%m/%Y')}",
-            styles["Normal"]
-        )
-    )
+    elementos.append(Paragraph(
+        f"<b>Farmacia:</b> {farmacia if farmacia != 'Todas' else 'Todas'}",
+        styles["Normal"]
+    ))
+    elementos.append(Paragraph(
+        f"<b>Fecha de generación:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+        styles["Normal"]
+    ))
 
-    elementos.append(Spacer(1, 2 * cm))
+    elementos.append(Spacer(1, 24))
 
-    # Salto de página
-    elementos.append(Spacer(1, 500))
-
-    # -----------------------------
+    # ===============================
     # RESUMEN EJECUTIVO
-    # -----------------------------
-    elementos.append(Paragraph("Resumen Ejecutivo", styles["Heading1"]))
-    elementos.append(Spacer(1, 12))
-
+    # ===============================
     total_gastos = df_gastos["monto"].sum()
     total_registros = len(df_gastos)
 
-    if not df_gastos.empty:
-        categoria_top = (
-            df_gastos.groupby("categoria")["monto"]
-            .sum()
-            .idxmax()
-        )
-    else:
-        categoria_top = "N/A"
-
-    resumen_texto = f"""
-    Durante el periodo analizado se registraron <b>{total_registros}</b> gastos,
-    con un monto total de <b>${total_gastos:,.2f}</b>.
-    La categoría con mayor impacto fue <b>{categoria_top}</b>.
-    """
-
-    elementos.append(Paragraph(resumen_texto, styles["Normal"]))
-    elementos.append(Spacer(1, 24))
-
-    # -----------------------------
-    # TABLA DE GASTOS
-    # -----------------------------
-    elementos.append(Paragraph("Detalle de Gastos", styles["Heading1"]))
-    elementos.append(Spacer(1, 12))
-
-    tabla_data = [
-        [
-            "Fecha",
-            "Farmacia",
-            "Categoría",
-            "Tipo",
-            "Descripción",
-            "Monto"
-        ]
+    resumen_data = [
+        ["Indicador", "Valor"],
+        ["Total de gastos", f"${total_gastos:,.2f}"],
+        ["Número de registros", total_registros],
     ]
 
-    df_tabla = df_gastos.sort_values("fecha")
+    resumen_table = Table(resumen_data, colWidths=[7 * cm, 6 * cm])
+    resumen_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+    ]))
 
-    for _, row in df_tabla.iterrows():
-        tabla_data.append([
+    elementos.append(Paragraph("Resumen Ejecutivo", styles["Encabezado"]))
+    elementos.append(resumen_table)
+    elementos.append(Spacer(1, 24))
+
+    # ===============================
+    # TABLA DE GASTOS
+    # ===============================
+    elementos.append(Paragraph("Detalle de Gastos", styles["Encabezado"]))
+    elementos.append(Spacer(1, 6))
+
+    data = [
+        ["Fecha", "Farmacia", "Categoría", "Descripción", "Monto"]
+    ]
+
+    for _, row in df_gastos.iterrows():
+        data.append([
             row["fecha"].strftime("%d/%m/%Y"),
             row["farmacia"],
-            row["categoria"],
-            row["tipo_gasto"],
-            row["descripcion"],
-            f"${row['monto']:,.2f}"
+            row["categoria"] or "-",
+            Paragraph(row["descripcion"] or "-", styles["Descripcion"]),
+            Paragraph(f"${row['monto']:,.2f}", styles["Derecha"])
         ])
 
-    tabla = Table(tabla_data, repeatRows=1, colWidths=[
-        2.2 * cm,
-        3 * cm,
-        3 * cm,
-        2.5 * cm,
-        4 * cm,
-        2.3 * cm
-    ])
+    tabla = Table(
+        data,
+        colWidths=[2.5 * cm, 4 * cm, 3 * cm, 6 * cm, 3 * cm],
+        repeatRows=1
+    )
 
     tabla.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EEEEEE")),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E6E6E6")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("ALIGN", (-1, 1), (-1, -1), "RIGHT"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
         ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+        ("TOPPADDING", (0, 0), (-1, 0), 8),
     ]))
 
     elementos.append(tabla)
 
-    # -----------------------------
-    # CONCLUSIÓN
-    # -----------------------------
-    elementos.append(Spacer(1, 24))
-    elementos.append(Paragraph("Conclusión", styles["Heading2"]))
-
-    conclusion = """
-    Se recomienda revisar periódicamente los gastos con mayor recurrencia
-    y validar que cuenten con una descripción clara para mantener
-    un control financiero adecuado.
-    """
-
-    elementos.append(Paragraph(conclusion, styles["Normal"]))
-
-    # -----------------------------
+    # ===============================
     # GENERAR PDF
-    # -----------------------------
+    # ===============================
     doc.build(elementos)
     buffer.seek(0)
-
-    return buffer.getvalue()
+    return buffer
