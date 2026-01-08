@@ -248,22 +248,20 @@ with tab_gastos:
 
     st.caption(f"Página {page} de {total_pages}")
 
-    if st.button("📄 Generar Resumen Financiero (PDF)"):
-        st.session_state["pdf_resumen"] = generar_pdf_resumen_financiero(
-            df_ventas_filt,
+    if st.button("📄 Generar Reporte de Gastos (PDF)"):
+        st.session_state["pdf_gastos"] = generar_pdf_gastos(
             df_gastos_filt,
             periodo_kpi,
             farmacia_sel
     )
 
-if st.session_state["pdf_resumen"] is not None:
-    st.download_button(
-        "⬇️ Descargar Resumen Financiero",
-        st.session_state["pdf_resumen"],
-        file_name="resumen_financiero.pdf",
-        mime="application/pdf"
+    if st.session_state["pdf_gastos"] is not None:
+        st.download_button(
+            "⬇️ Descargar PDF",
+            st.session_state["pdf_gastos"],
+            file_name="reporte_gastos.pdf",
+            mime="application/pdf"
     )
-
 
 
 
@@ -281,20 +279,22 @@ with tab_resumen:
     st.write(f"🔴 Gastos totales: **${gastos_total:,.2f}**")
     st.write(f"🔵 Utilidad: **${utilidad:,.2f}**")
 
-    if st.button("📄 Descargar Resumen Financiero (PDF)"):
-    pdf_resumen = generar_pdf_resumen_financiero(
-        df_ventas_filt,
-        df_gastos_filt,
-        periodo_kpi,
-        farmacia_sel
+    if st.button("📄 Generar Resumen Financiero (PDF)"):
+        st.session_state["pdf_resumen"] = generar_pdf_resumen_financiero(
+            df_ventas_filt,
+            df_gastos_filt,
+            periodo_kpi,
+            farmacia_sel
     )
 
-    st.download_button(
-        "⬇️ Descargar PDF",
-        pdf,
-        file_name="resumen_financiero.pdf",
-        mime="application/pdf"
-    )
+    if st.session_state["pdf_resumen"] is not None:
+        st.download_button(
+            "⬇️ Descargar Resumen Financiero",
+            st.session_state["pdf_resumen"],
+            file_name="resumen_financiero.pdf",
+            mime="application/pdf"
+        )
+
 # ===============================
 # SIDEBAR INFO
 # ===============================
