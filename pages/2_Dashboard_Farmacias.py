@@ -381,6 +381,6 @@ st.sidebar.success(
     f"Rol: {st.session_state['usuario']['rol']}"
 )
 
-if st.sidebar.button("🚪 Cerrar sesión"):
+if st.sidebar.button(" Cerrar sesión"):
     st.session_state.clear()
     st.switch_page("login.py")
