@@ -121,9 +121,10 @@ if anio_sel != "Todos":
 
 mes_num = None
 if mes_sel != "Todos":
-    mes_num = int(mes_sel.split(" - ")[0])
+    mes_num = mes_sel
     df_filt = df_filt[df_filt["fecha"].dt.month == mes_num]
     df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_num]
+
 
 # ---------------------------------
 # PERIODO ANALIZADO (VISIBLE)
@@ -240,7 +241,7 @@ with tab_gastos:
             df_gastos_filt,
             periodo_kpi,
             farmacia_sel
-        )
+    )
 
     st.download_button(
         "⬇️ Descargar PDF",
@@ -248,6 +249,7 @@ with tab_gastos:
         file_name="reporte_gastos.pdf",
         mime="application/pdf"
     )
+
 
 # ===============================
 # 🔵 RESUMEN
