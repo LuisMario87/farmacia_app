@@ -279,24 +279,56 @@ st.plotly_chart(fig, use_container_width=True)
 st.divider()
 
 # ---------------------------------
-# 4️⃣ PROMEDIOS
+# 4️⃣ PROMEDIOS (BASADOS EN VENTAS DIARIAS)
 # ---------------------------------
 st.subheader("📌 Promedios")
 
-ventas_diarias = df_filt[df_filt["tipo_registro"] == "diario"]
-ventas_semanales = df_filt[df_filt["tipo_registro"] == "semanal"]
-ventas_mensuales = df_filt[df_filt["tipo_registro"] == "mensual"]
+# Usamos SOLO ventas diarias como base real
+ventas_diarias = df_filt.copy()
 
-p1 = ventas_diarias.groupby(ventas_diarias["fecha"].dt.date)["ventas_totales"].sum().mean()
-p2 = ventas_semanales.groupby(ventas_semanales["fecha"].dt.to_period("W"))["ventas_totales"].sum().mean()
-p3 = ventas_mensuales.groupby(ventas_mensuales["fecha"].dt.to_period("M"))["ventas_totales"].sum().mean()
+# 🔹 Promedio Diario
+prom_diario = (
+    ventas_diarias
+    .groupby(ventas_diarias["fecha"].dt.date)["ventas_totales"]
+    .sum()
+    .mean()
+)
+
+# 🔹 Promedio Semanal (derivado de ventas diarias)
+prom_semanal = (
+    ventas_diarias
+    .groupby(ventas_diarias["fecha"].dt.to_period("W"))["ventas_totales"]
+    .sum()
+    .mean()
+)
+
+# 🔹 Promedio Mensual (derivado de ventas diarias)
+prom_mensual = (
+    ventas_diarias
+    .groupby(ventas_diarias["fecha"].dt.to_period("M"))["ventas_totales"]
+    .sum()
+    .mean()
+)
 
 c1, c2, c3 = st.columns(3)
-c1.metric("Promedio Diario", f"${0 if pd.isna(p1) else p1:,.2f}")
-c2.metric("Promedio Semanal", f"${0 if pd.isna(p2) else p2:,.2f}")
-c3.metric("Promedio Mensual", f"${0 if pd.isna(p3) else p3:,.2f}")
+
+c1.metric(
+    "📅 Promedio Diario",
+    f"${0 if pd.isna(prom_diario) else prom_diario:,.2f}"
+)
+
+c2.metric(
+    "🗓 Promedio Semanal",
+    f"${0 if pd.isna(prom_semanal) else prom_semanal:,.2f}"
+)
+
+c3.metric(
+    "📆 Promedio Mensual",
+    f"${0 if pd.isna(prom_mensual) else prom_mensual:,.2f}"
+)
 
 st.divider()
+
 
 # ---------------------------------
 # 5️⃣ COMPARATIVOS
