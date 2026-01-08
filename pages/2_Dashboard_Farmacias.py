@@ -38,8 +38,8 @@ MESES_ES = {
 # ---------------------------------
 # CONFIG
 # ---------------------------------
-st.set_page_config(page_title="Dashboard Farmacias", layout="wide")
-st.title("📊 Dashboard Financiero de Farmacias")
+st.set_page_config(page_title="Dashboard", layout="wide")
+st.title("📊 Dashboard Financiero")
 
 # ---------------------------------
 # SEGURIDAD
