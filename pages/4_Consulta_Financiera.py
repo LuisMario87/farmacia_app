@@ -71,6 +71,12 @@ MESES_ES = {
     5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
     9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
+# ===============================
+# SESSION STATE
+# ===============================
+
+if "pdf_gastos" not in st.session_state:
+    st.session_state["pdf_gastos"] = None
 
 
 # ===============================
@@ -236,19 +242,21 @@ with tab_gastos:
 
     st.caption(f"Página {page} de {total_pages}")
 
-    if st.button("📄 Descargar Reporte de Gastos (PDF)"):
-        pdf = generar_pdf_gastos(
+    if st.button("📄 Generar Reporte de Gastos (PDF)"):
+        st.session_state["pdf_gastos"] = generar_pdf_gastos(
             df_gastos_filt,
             periodo_kpi,
             farmacia_sel
     )
 
-    st.download_button(
-        "⬇️ Descargar PDF",
-        pdf,
-        file_name="reporte_gastos.pdf",
-        mime="application/pdf"
+    if st.session_state["pdf_gastos"] is not None:
+        st.download_button(
+            "⬇️ Descargar PDF",
+            st.session_state["pdf_gastos"],
+            file_name="reporte_gastos.pdf",
+            mime="application/pdf"
     )
+
 
 
 # ===============================
