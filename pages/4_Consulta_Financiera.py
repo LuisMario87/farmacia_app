@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from utils.conexionASupabase import get_connection
 from reports.pdf_gastos import generar_pdf_gastos
-from reports.pdf_resumen_financiero import generar_pdf_resumen_financiero
+from reports.pdf_resumen import generar_pdf_resumen_financiero
 
 
 # ===============================
