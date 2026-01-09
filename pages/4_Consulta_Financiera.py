@@ -17,6 +17,9 @@ st.title("📄 Consulta Financiera")
 if "usuario" not in st.session_state:
     st.switch_page("streamlit_app.py")
 
+if st.session_state["usuario"]["rol"] != "admin":
+    st.error("No tienes permisos para esta sección")
+    st.stop()
 # ===============================
 # CONEXIÓN
 # ===============================

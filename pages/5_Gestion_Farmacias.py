@@ -13,6 +13,10 @@ cursor = conn.cursor()
 # Bloquear acceso si no hay sesión
 if "usuario" not in st.session_state:
     st.switch_page("streamlit_app.py")
+
+if st.session_state["usuario"]["rol"] != "admin":
+    st.error("No tienes permisos para esta sección")
+    st.stop()
 # ---------------------------------
 # CARGAR FARMACIAS
 # ---------------------------------
