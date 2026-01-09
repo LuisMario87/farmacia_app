@@ -21,7 +21,7 @@ if "usuario" not in st.session_state:
 if "usuario" in st.session_state:
     st.switch_page("pages/1_Dashboard_Farmacias.py")
 
-st.title("Sistema de Ventas Farmacéuticas")
+st.title("Farmacias GI")
 
 email = st.text_input("Correo")
 password = st.text_input("Contraseña", type="password")
