@@ -30,7 +30,7 @@ with tab_crear:
     nombre = st.text_input("Nombre completo")
     email = st.text_input("Correo")
     password = st.text_input("Contraseña", type="password")
-    rol = st.selectbox("Rol", ["admin", "empleado"])
+    rol = st.selectbox("Rol", ["admin", "empleado"], key="crear_rol")
 
     if st.button("Crear usuario"):
         if not nombre or not email or not password:
@@ -74,15 +74,23 @@ with tab_admin:
     st.divider()
 
     usuario_sel = st.selectbox(
-        "Selecciona un usuario",
-        df_users["usuario_id"],
-        format_func=lambda x: df_users[df_users["usuario_id"] == x]["nombre"].values[0]
+    "Selecciona un usuario",
+    df_users["usuario_id"],
+    format_func=lambda x: df_users[df_users["usuario_id"] == x]["nombre"].values[0],
+    key="usuario_seleccionado"
     )
+
 
     user_data = df_users[df_users["usuario_id"] == usuario_sel].iloc[0]
 
     nuevo_nombre = st.text_input("Nombre", user_data["nombre"])
-    nuevo_rol = st.selectbox("Rol", ["admin", "empleado"], index=0 if user_data["rol"] == "admin" else 1)
+    nuevo_rol = st.selectbox(
+    "Rol",
+    ["admin", "empleado"],
+    index=0 if user_data["rol"] == "admin" else 1,
+    key="editar_rol"
+    )
+
 
     cambiar_pass = st.checkbox("Cambiar contraseña")
     nueva_pass = None
