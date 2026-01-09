@@ -153,36 +153,6 @@ st.caption(f"📈 Margen de utilidad: **{margen:.2f}%**")
 
 st.divider()
 
-
-
-# ---------------------------------
-# 2️⃣ UTILIDAD POR FARMACIA
-# ---------------------------------
-st.subheader("💵 Utilidad por Farmacia")
-
-df_utilidad = (
-    df_filt.groupby("farmacia")["ventas_totales"].sum().reset_index()
-    .merge(
-        df_gastos_filt.groupby("farmacia")["monto"].sum().reset_index(),
-        on="farmacia",
-        how="left"
-    )
-)
-
-df_utilidad["monto"] = df_utilidad["monto"].fillna(0)
-df_utilidad["utilidad"] = df_utilidad["ventas_totales"] - df_utilidad["monto"]
-
-fig_util = px.bar(
-    df_utilidad,
-    x="farmacia",
-    y="utilidad",
-    title="Utilidad Neta por Farmacia"
-)
-
-st.plotly_chart(fig_util, use_container_width=True)
-
-st.divider()
-
 # ===============================
 # COMPARATIVO VS PERIODO ANTERIOR
 # ===============================
@@ -248,6 +218,35 @@ if mostrar_comparativo:
 
 else:
     st.info("ℹ️ Selecciona un mes específico para ver la comparativa.")
+
+
+# ---------------------------------
+# 2️⃣ UTILIDAD POR FARMACIA
+# ---------------------------------
+st.subheader("💵 Utilidad por Farmacia")
+
+df_utilidad = (
+    df_filt.groupby("farmacia")["ventas_totales"].sum().reset_index()
+    .merge(
+        df_gastos_filt.groupby("farmacia")["monto"].sum().reset_index(),
+        on="farmacia",
+        how="left"
+    )
+)
+
+df_utilidad["monto"] = df_utilidad["monto"].fillna(0)
+df_utilidad["utilidad"] = df_utilidad["ventas_totales"] - df_utilidad["monto"]
+
+fig_util = px.bar(
+    df_utilidad,
+    x="farmacia",
+    y="utilidad",
+    title="Utilidad Neta por Farmacia"
+)
+
+st.plotly_chart(fig_util, use_container_width=True)
+
+st.divider()
 
 
 # ---------------------------------
