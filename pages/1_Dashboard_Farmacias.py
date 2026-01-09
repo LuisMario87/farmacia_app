@@ -154,6 +154,87 @@ st.caption(f"📈 Margen de utilidad: **{margen:.2f}%**")
 st.divider()
 
 # ---------------------------------
+# COMPARATIVO CON PERIODO ANTERIOR
+# ---------------------------------
+
+mostrar_comparativo = (
+    anio_sel != "Todos" and
+    mes_sel != "Todos"
+)
+
+if mostrar_comparativo:
+
+    # Periodo actual
+    ventas_actual = df_filt["ventas_totales"].sum()
+    gastos_actual = df_gastos_filt["monto"].sum()
+    utilidad_actual = ventas_actual - gastos_actual
+
+    # Periodo anterior
+    mes_anterior = mes_sel - 1
+    anio_anterior = anio_sel
+
+    if mes_anterior == 0:
+        mes_anterior = 12
+        anio_anterior -= 1
+
+    df_ventas_ant = df[
+        (df["fecha"].dt.year == anio_anterior) &
+        (df["fecha"].dt.month == mes_anterior)
+    ]
+
+    df_gastos_ant = df_gastos[
+        (df_gastos["fecha"].dt.year == anio_anterior) &
+        (df_gastos["fecha"].dt.month == mes_anterior)
+    ]
+
+    if farmacia_sel != "Todas":
+        df_ventas_ant = df_ventas_ant[df_ventas_ant["farmacia"] == farmacia_sel]
+        df_gastos_ant = df_gastos_ant[df_gastos_ant["farmacia"] == farmacia_sel]
+
+    ventas_ant = df_ventas_ant["ventas_totales"].sum()
+    gastos_ant = df_gastos_ant["monto"].sum()
+    utilidad_ant = ventas_ant - gastos_ant
+
+def variacion(actual, anterior):
+    if anterior == 0:
+        return 0, 0
+    diff = actual - anterior
+    pct = (diff / anterior) * 100
+    return diff, pct
+
+if mostrar_comparativo:
+    st.subheader("📊 Comparativo vs periodo anterior")
+
+    v_diff, v_pct = variacion(ventas_actual, ventas_ant)
+    g_diff, g_pct = variacion(gastos_actual, gastos_ant)
+    u_diff, u_pct = variacion(utilidad_actual, utilidad_ant)
+
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric(
+        "Ventas",
+        f"${ventas_actual:,.2f}",
+        f"{v_diff:+,.2f} ({v_pct:+.1f}%)"
+    )
+
+    c2.metric(
+        "Gastos",
+        f"${gastos_actual:,.2f}",
+        f"{g_diff:+,.2f} ({g_pct:+.1f}%)"
+    )
+
+    c3.metric(
+        "Utilidad",
+        f"${utilidad_actual:,.2f}",
+        f"{u_diff:+,.2f} ({u_pct:+.1f}%)"
+    )
+else:
+    st.info("ℹ️ Selecciona un mes específico para ver el comparativo.")
+
+
+
+
+# ---------------------------------
 # 2️⃣ UTILIDAD POR FARMACIA
 # ---------------------------------
 st.subheader("💵 Utilidad por Farmacia")
