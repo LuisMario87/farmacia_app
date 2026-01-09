@@ -183,24 +183,26 @@ st.plotly_chart(fig_util, use_container_width=True)
 
 st.divider()
 
-# ---------------------------------
-# COMPARATIVO CON PERIODO ANTERIOR
-# ---------------------------------
+# ===============================
+# COMPARATIVO VS PERIODO ANTERIOR
+# ===============================
+
+mes_num = None
+if mes_sel != "Todos":
+    mes_num = int(mes_sel.split(" - ")[0])
 
 mostrar_comparativo = (
     anio_sel != "Todos" and
-    mes_sel != "Todos"
+    mes_num is not None
 )
 
 if mostrar_comparativo:
 
-    # Periodo actual
     ventas_actual = df_filt["ventas_totales"].sum()
     gastos_actual = df_gastos_filt["monto"].sum()
     utilidad_actual = ventas_actual - gastos_actual
 
-    # Periodo anterior
-    mes_anterior = mes_sel - 1
+    mes_anterior = mes_num - 1
     anio_anterior = anio_sel
 
     if mes_anterior == 0:
@@ -225,44 +227,27 @@ if mostrar_comparativo:
     gastos_ant = df_gastos_ant["monto"].sum()
     utilidad_ant = ventas_ant - gastos_ant
 
-def variacion(actual, anterior):
-    if anterior == 0:
-        return 0, 0
-    diff = actual - anterior
-    pct = (diff / anterior) * 100
-    return diff, pct
-
-if mostrar_comparativo:
-    st.subheader("📊 Comparativo vs periodo anterior")
+    def variacion(actual, anterior):
+        if anterior == 0:
+            return 0, 0
+        diff = actual - anterior
+        pct = (diff / anterior) * 100
+        return diff, pct
 
     v_diff, v_pct = variacion(ventas_actual, ventas_ant)
     g_diff, g_pct = variacion(gastos_actual, gastos_ant)
     u_diff, u_pct = variacion(utilidad_actual, utilidad_ant)
 
+    st.subheader("📊 Comparativo vs periodo anterior")
+
     c1, c2, c3 = st.columns(3)
 
-    c1.metric(
-        "Ventas",
-        f"${ventas_actual:,.2f}",
-        f"{v_diff:+,.2f} ({v_pct:+.1f}%)"
-    )
+    c1.metric("Ventas", f"${ventas_actual:,.2f}", f"{v_diff:+,.2f} ({v_pct:+.1f}%)")
+    c2.metric("Gastos", f"${gastos_actual:,.2f}", f"{g_diff:+,.2f} ({g_pct:+.1f}%)")
+    c3.metric("Utilidad", f"${utilidad_actual:,.2f}", f"{u_diff:+,.2f} ({u_pct:+.1f}%)")
 
-    c2.metric(
-        "Gastos",
-        f"${gastos_actual:,.2f}",
-        f"{g_diff:+,.2f} ({g_pct:+.1f}%)"
-    )
-
-    c3.metric(
-        "Utilidad",
-        f"${utilidad_actual:,.2f}",
-        f"{u_diff:+,.2f} ({u_pct:+.1f}%)"
-    )
 else:
-    st.info("ℹ️ Selecciona un mes específico para ver el comparativo.")
-
-
-
+    st.info("ℹ️ Selecciona un mes específico para ver la comparativa.")
 
 
 # ---------------------------------
