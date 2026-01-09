@@ -221,7 +221,7 @@ st.sidebar.success(
 
 if st.sidebar.button("🚪 Cerrar sesión"):
     st.session_state.clear()
-    st.switch_page("login.py")
+    st.switch_page("streamlit_app.py")
 
 # ---------------------------------
 # CIERRE
