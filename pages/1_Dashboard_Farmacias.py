@@ -217,7 +217,7 @@ if mostrar_comparativo:
     c3.metric("Utilidad", f"${utilidad_actual:,.2f}", f"{u_diff:+,.2f} ({u_pct:+.1f}%)")
 
 else:
-    st.info("ℹ️ Selecciona un mes específico para ver la comparativa.")
+    st.info("ℹ️ Selecciona un mes y año específico para ver la comparativa.")
 
 
 # ---------------------------------
