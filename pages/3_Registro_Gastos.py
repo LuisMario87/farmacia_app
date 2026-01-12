@@ -148,12 +148,14 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
             "gasto_id",
             "farmacia",
             "fecha",
+            "folio",
             "categoria",
             "tipo_gasto",
             "descripcion",
             "monto"
         ]
-    )
+     )
+
 
     edited = st.data_editor(
         df_recent,
@@ -164,6 +166,11 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
                 "Farmacia",
                 options=farmacia_nombres
             ),
+
+            "folio": st.column_config.TextColumn(
+                "Folio"     
+            ),
+
             "categoria": st.column_config.SelectboxColumn(
                 "Categoría",
                 options=categorias
@@ -172,6 +179,8 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
                 "Tipo de gasto",
                 options=tipos_gasto
             ),
+            
+
             "descripcion": st.column_config.TextColumn(
                 "Descripción"
             )
@@ -186,6 +195,7 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
                     SET
                         farmacia_id = %s,
                         fecha = %s,
+                        folio = %s,
                         categoria = %s,
                         tipo_gasto = %s,
                         descripcion = %s,
@@ -194,12 +204,14 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
                 """, (
                     farmacia_dict[r["farmacia"]],
                     r["fecha"],
+                    r["folio"],
                     r["categoria"],
                     r["tipo_gasto"],
                     r["descripcion"],
                     r["monto"],
                     r["gasto_id"]
                 ))
+
 
             conn.commit()
             st.success("✅ Cambios guardados correctamente")
