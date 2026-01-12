@@ -29,7 +29,7 @@ farmacia_nombres = list(farmacia_dict.keys())
 # ---------------------------------
 categorias = [
     "Renta", "Sueldos", "Servicios",
-    "Insumos", "Transporte", "Otros"
+    "Insumos","Mercancia","Transporte", "Otros"
 ]
 
 tipos_gasto = ["fijo", "variable"]
@@ -63,25 +63,41 @@ descripcion = st.text_area(
     placeholder="Ej. Pago de renta de marzo, recibo CFE, compra de insumos, etc."
 )
 
+folio = None
+
+if categoria == "Mercancia":
+    folio = st.text_input(
+        "🧾 Número de folio de la mercancía",
+        placeholder="Ej. FOL-2025-001"
+    )
+
+
 if st.button("💾 Registrar gasto"):
     if monto <= 0:
         st.error("❌ El monto debe ser mayor a 0")
         st.stop()
+    
+    if categoria == "Mercancia" and not folio:
+        st.error("❌ Debes ingresar el número de folio para gastos de mercancía")
+        st.stop()
+
 
     try:
         cursor.execute("""
             INSERT INTO gastos (
-                farmacia_id, monto, fecha, tipo_gasto, categoria, descripcion
+                farmacia_id, monto, fecha, tipo_gasto, categoria, descripcion, folio
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (
             farmacia_id,
             monto,
             fecha,
             tipo_gasto,
             categoria,
-            descripcion
-        ))
+            descripcion,
+            folio
+         ))
+
 
         conn.commit()
         st.success("✅ Gasto registrado correctamente")
@@ -113,6 +129,7 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
             g.gasto_id,
             f.nombre AS farmacia,
             g.fecha,
+            g.folio,
             g.categoria,
             g.tipo_gasto,
             g.descripcion,
