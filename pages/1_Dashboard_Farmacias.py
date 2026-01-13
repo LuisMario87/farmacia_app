@@ -1,6 +1,15 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from datetime import datetime
+# ---------------------------------
+# FECHA ACTUAL (DEFAULT FILTROS)
+# ---------------------------------
+hoy = datetime.today()
+anio_actual = hoy.year
+mes_actual = hoy.month
+# ---------------------------------
+
 from utils.conexionASupabase import get_connection
 from reports.reporte_financiero import generar_reporte_financiero
 
@@ -95,12 +104,36 @@ farmacias = ["Todas"] + sorted(df["farmacia"].unique())
 farmacia_sel = st.sidebar.selectbox("Farmacia", farmacias)
 
 anios = ["Todos"] + sorted(df["fecha"].dt.year.unique())
-anio_sel = st.sidebar.selectbox("Año", anios)
+
+if anio_actual in anios:
+    index_anio = anios.index(anio_actual)
+else:
+    index_anio = 0  # fallback seguro
+
+anio_sel = st.sidebar.selectbox(
+    "Año",
+    anios,
+    index=index_anio
+)
+
 
 meses = ["Todos"] + [
     f"{m} - {MESES_ES[m]}" for m in sorted(df["fecha"].dt.month.unique())
 ]
-mes_sel = st.sidebar.selectbox("Mes", meses)
+
+mes_actual_label = f"{mes_actual} - {MESES_ES[mes_actual]}"
+
+if mes_actual_label in meses:
+    index_mes = meses.index(mes_actual_label)
+else:
+    index_mes = 0
+
+mes_sel = st.sidebar.selectbox(
+    "Mes",
+    meses,
+    index=index_mes
+)
+
 
 # ---------------------------------
 # FILTRADO
