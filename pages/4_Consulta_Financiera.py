@@ -1,5 +1,13 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
+# ===============================
+# FECHA ACTUAL (DEFAULT FILTROS)
+# ===============================
+hoy = datetime.today()
+anio_actual = hoy.year
+mes_actual = hoy.month
+
 from utils.conexionASupabase import get_connection
 from reports.pdf_gastos import generar_pdf_gastos
 from reports.pdf_resumen import generar_pdf_resumen_financiero
@@ -97,10 +105,36 @@ farmacias = ["Todas"] + sorted(df_ventas["farmacia"].unique())
 farmacia_sel = st.sidebar.selectbox("Farmacia", farmacias)
 
 anios = ["Todos"] + sorted(df_ventas["fecha"].dt.year.unique())
-anio_sel = st.sidebar.selectbox("Año", anios)
 
-meses = ["Todos"] + list(range(1, 13))
-mes_sel = st.sidebar.selectbox("Mes", meses)
+if anio_actual in anios:
+    index_anio = anios.index(anio_actual)
+else:
+    index_anio = 0
+
+anio_sel = st.sidebar.selectbox(
+    "Año",
+    anios,
+    index=index_anio
+)
+
+
+meses = ["Todos"] + [
+    f"{m} - {MESES_ES[m]}" for m in sorted(df_ventas["fecha"].dt.month.unique())
+]
+
+mes_actual_label = f"{mes_actual} - {MESES_ES[mes_actual]}"
+
+if mes_actual_label in meses:
+    index_mes = meses.index(mes_actual_label)
+else:
+    index_mes = 0
+
+mes_sel = st.sidebar.selectbox(
+    "Mes",
+    meses,
+    index=index_mes
+)
+
 
 # ===============================
 # APLICAR FILTROS
