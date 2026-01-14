@@ -142,6 +142,10 @@ mes_sel = st.sidebar.selectbox(
 df_ventas_filt = df_ventas.copy()
 df_gastos_filt = df_gastos.copy()
 
+mes_num = None
+if mes_sel != "Todos":
+    mes_num = int(mes_sel.split(" - ")[0])
+
 if farmacia_sel != "Todas":
     df_ventas_filt = df_ventas_filt[df_ventas_filt["farmacia"] == farmacia_sel]
     df_gastos_filt = df_gastos_filt[df_gastos_filt["farmacia"] == farmacia_sel]
@@ -150,30 +154,11 @@ if anio_sel != "Todos":
     df_ventas_filt = df_ventas_filt[df_ventas_filt["fecha"].dt.year == anio_sel]
     df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.year == anio_sel]
 
-if mes_sel != "Todos":
-    df_ventas_filt = df_ventas_filt[df_ventas_filt["fecha"].dt.month == mes_sel]
-    df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_sel]
-
-# ---------------------------------
-# FILTRADO
-# ---------------------------------
-df_filt = df_ventas.copy()
-df_gastos_filt = df_gastos.copy()
-
-if farmacia_sel != "Todas":
-    df_filt = df_filt[df_filt["farmacia"] == farmacia_sel]
-    df_gastos_filt = df_gastos_filt[df_gastos_filt["farmacia"] == farmacia_sel]
-
-if anio_sel != "Todos":
-    df_filt = df_filt[df_filt["fecha"].dt.year == anio_sel]
-    df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.year == anio_sel]
-
-mes_num = None
-if mes_sel != "Todos":
-    mes_num = int(mes_sel.split(" - ")[0])
-    df_filt = df_filt[df_filt["fecha"].dt.month == mes_num]
+if mes_num is not None:
+    df_ventas_filt = df_ventas_filt[df_ventas_filt["fecha"].dt.month == mes_num]
     df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_num]
 
+# ===============================
 
 
 # ---------------------------------
