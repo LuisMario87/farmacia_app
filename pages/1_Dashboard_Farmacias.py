@@ -155,6 +155,19 @@ if mes_sel != "Todos":
     df_filt = df_filt[df_filt["fecha"].dt.month == mes_num]
     df_gastos_filt = df_gastos_filt[df_gastos_filt["fecha"].dt.month == mes_num]
 
+
+# ---------------------------------
+# VALIDACIÓN: NO HAY DATOS
+# ---------------------------------
+if df_filt.empty and df_gastos_filt.empty:
+    st.warning("📭 No hay datos para el periodo seleccionado.")
+    st.info(
+        "No existen registros de ventas ni gastos en este rango de fechas.\n\n"
+        "👉 Intenta seleccionar otro mes, año o farmacia."
+    )
+    st.stop()
+
+
 # ---------------------------------
 # PERIODO ANALIZADO (VISIBLE)
 # ---------------------------------
@@ -212,6 +225,7 @@ if mostrar_comparativo:
     mes_anterior = mes_num - 1
     anio_anterior = anio_sel
 
+
     if mes_anterior == 0:
         mes_anterior = 12
         anio_anterior -= 1
@@ -225,6 +239,10 @@ if mostrar_comparativo:
         (df_gastos["fecha"].dt.year == anio_anterior) &
         (df_gastos["fecha"].dt.month == mes_anterior)
     ]
+
+    if df_ventas_ant == 0 and df_gastos_ant == 0:
+        st.info("ℹ️ No hay datos en el periodo anterior para comparar.")
+        st.stop()
 
     if farmacia_sel != "Todas":
         df_ventas_ant = df_ventas_ant[df_ventas_ant["farmacia"] == farmacia_sel]
@@ -303,6 +321,11 @@ if tipo == "Diaria":
         # 🔹 Calcular rango real de fechas de la semana seleccionada
     fecha_inicio = df_semana["fecha"].min()
     fecha_fin = df_semana["fecha"].max()
+
+    if df_semana.empty:
+        st.info("ℹ️ No hay datos para la semana seleccionada.")
+        st.stop()
+
 
     # 🔹 Obtener nombres de día en español
     dia_inicio = DIAS_ES[fecha_inicio.strftime("%A")]
@@ -451,19 +474,24 @@ st.plotly_chart(px.bar(df_gasto_farma, x="farmacia", y="monto", title="Gastos po
 # ---------------------------------
 st.subheader("🥇 Farmacia con Mayor Venta")
 
-if not df_filt.empty:
+if df_filt.empty:
+    st.info("ℹ️ No hay datos suficientes para determinar la farmacia líder.")
+else:
     top = df_filt.groupby("farmacia")["ventas_totales"].sum().idxmax()
     total = df_filt.groupby("farmacia")["ventas_totales"].sum().max()
     st.success(f"🥇 {top} — ${total:,.2f}")
 
-# ---------------------------------
-# REPORTE DESCARGABLE
-# ---------------------------------
+
 
 
 # ---------------------------------
 # REPORTE PDF
 # ---------------------------------
+
+if df_filt.empty and df_gastos_filt.empty:
+    st.warning("⚠️ No hay datos para generar el reporte.")
+    st.stop()
+
 if st.button("📄 Generar Reporte PDF"):
     pdf = generar_reporte_financiero(
         df_filt,
