@@ -136,7 +136,7 @@ if st.button("💾 Registrar gasto"):
 # =================================
 st.divider()
 
-with st.expander("⚠️ Editar o eliminar gastos registrados"):
+with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
 
     cantidad = st.selectbox(
         "📄 Registros a mostrar",
