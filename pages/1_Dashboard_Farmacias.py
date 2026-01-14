@@ -240,9 +240,7 @@ if mostrar_comparativo:
         (df_gastos["fecha"].dt.month == mes_anterior)
     ]
 
-    if df_ventas_ant == 0 and df_gastos_ant == 0:
-        st.info("ℹ️ No hay datos en el periodo anterior para comparar.")
-        st.stop()
+    
 
     if farmacia_sel != "Todas":
         df_ventas_ant = df_ventas_ant[df_ventas_ant["farmacia"] == farmacia_sel]
