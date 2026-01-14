@@ -163,7 +163,7 @@ if df_filt.empty and df_gastos_filt.empty:
     st.warning("📭 No hay datos para el periodo seleccionado.")
     st.info(
         "No existen registros de ventas ni gastos en este rango de fechas.\n\n"
-        "👉 Intenta seleccionar otro mes, año o farmacia."
+        "👉 Intenta seleccionar otro mes, año o farmacia en los filtros laterales."
     )
     st.stop()
 
