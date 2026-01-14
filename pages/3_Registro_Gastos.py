@@ -26,7 +26,7 @@ farmacia_dict = {f[1]: f[0] for f in farmacias}
 farmacia_nombres = list(farmacia_dict.keys())
 
 # ---------------------------------
-# CATEGORÍAS Y TIPOS DE GASTO
+# CATEGORÍAS Y TIPOS DE GASTO ETC
 # ---------------------------------
 categorias = [
     "Renta", "Sueldos", "Servicios",
@@ -34,6 +34,18 @@ categorias = [
 ]
 
 tipos_gasto = ["fijo", "variable"]
+
+def folio_mercancia_duplicado(cursor, farmacia_id, folio):
+    cursor.execute("""
+        SELECT 1
+        FROM gastos
+        WHERE farmacia_id = %s
+        AND categoria = 'Mercancia'
+        AND folio = %s
+        LIMIT 1
+    """, (farmacia_id, folio))
+    return cursor.fetchone() is not None
+
 
 # =================================
 # REGISTRO DE GASTO
@@ -81,6 +93,11 @@ if st.button("💾 Registrar gasto"):
     if categoria == "Mercancia" and not folio:
         st.error("❌ Debes ingresar el número de folio para gastos de mercancía")
         st.stop()
+    
+    if categoria == "Mercancia":
+        if folio_mercancia_duplicado(cursor, farmacia_id, folio):
+            st.error("❌ Ya existe un gasto de mercancía con ese folio en esta farmacia")
+            st.stop()
 
 
     try:

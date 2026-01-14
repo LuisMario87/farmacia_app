@@ -42,7 +42,7 @@ modo = st.radio(
 # =================================
 tipo_registro = st.selectbox(
     "Tipo de registro",
-    ["diario", "semanal", "mensual"]
+    ["diario"]
 )
 
 fecha = st.date_input(
@@ -50,6 +50,15 @@ fecha = st.date_input(
     value=date.today(),
     max_value=date.today()
 )
+def venta_duplicada(cursor, farmacia_id, fecha):
+    cursor.execute("""
+        SELECT 1
+        FROM ventas
+        WHERE farmacia_id = %s
+        AND fecha = %s
+        LIMIT 1
+    """, (farmacia_id, fecha))
+    return cursor.fetchone() is not None
 
 st.divider()
 
@@ -74,6 +83,11 @@ if modo == "Registro Individual":
         if monto <= 0:
             st.error("❌ El monto debe ser mayor a 0")
             st.stop()
+        
+        if venta_duplicada(cursor, farmacia_id, fecha):
+            st.error("❌ Ya existe una venta registrada para esta farmacia en esa fecha")
+            st.stop()
+
 
         try:
             cursor.execute("""
@@ -113,7 +127,11 @@ if modo == "Registro Rápido (Todas las farmacias)":
         )
 
         if monto > 0:
-            registros.append((fid, monto, tipo_registro, fecha))
+            if venta_duplicada(cursor, fid, fecha):
+                st.warning(f"⚠️ {nombre} ya tiene venta registrada ese día, se omitió")
+            else:
+                registros.append((fid, monto, tipo_registro, fecha))
+
 
     if st.button("💾 Registrar ventas"):
         if not registros:
@@ -166,7 +184,11 @@ if modo == "Registro Personalizado":
         )
 
         if monto > 0:
-            registros.append((fid, monto, tipo_registro, fecha))
+            if venta_duplicada(cursor, fid, fecha):
+                st.warning(f"⚠️ {nombre} ya tiene venta registrada ese día, se omitió")
+            else:
+                registros.append((fid, monto, tipo_registro, fecha))
+
 
     if st.button("💾 Registrar ventas seleccionadas"):
         if not registros:
