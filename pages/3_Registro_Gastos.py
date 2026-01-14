@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from utils.conexionASupabase import get_connection
+from utils.logger import registrar_log
 
 st.set_page_config(page_title="Registro de Gastos", layout="wide")
 st.title("💸 Registro de Gastos por Farmacia")
@@ -101,6 +102,13 @@ if st.button("💾 Registrar gasto"):
 
         conn.commit()
         st.success("✅ Gasto registrado correctamente")
+
+        registrar_log(
+            st.session_state["usuario"],
+            "REGISTRO_GASTO",
+            f"Registró gasto de ${monto:,.2f} ({categoria}) en {farmacia_nombre}"
+        )
+
 
     except Exception as e:
         conn.rollback()
@@ -216,6 +224,13 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
             conn.commit()
             st.success("✅ Cambios guardados correctamente")
 
+
+            registrar_log(
+                st.session_state["usuario"],
+                "MODIFICACION_GASTO",
+                f"Modificó gasto ID {r['gasto_id']}"
+            )
+
         except Exception as e:
             conn.rollback()
             st.error(e)
@@ -235,6 +250,12 @@ with st.expander("⚠️ Editar o eliminar gastos registrados"):
             )
             conn.commit()
             st.success("🗑 Gasto eliminado correctamente")
+
+            registrar_log(
+                st.session_state["usuario"],
+                "ELIMINACION_GASTO",
+                f"Eliminó gasto ID {borrar_id}"
+            )
 
         except Exception as e:
             conn.rollback()

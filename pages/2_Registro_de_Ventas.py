@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from utils.conexionASupabase import get_connection
+from utils.logger import registrar_log
 
 st.set_page_config(page_title="Registro de Ventas", layout="wide")
 st.title("📝 Registro de Ventas por Farmacia")
@@ -82,7 +83,13 @@ if modo == "Registro Individual":
 
             conn.commit()
             st.success("✅ Venta registrada correctamente")
-
+        
+            registrar_log(
+                st.session_state["usuario"],
+                "REGISTRO_VENTA",
+                f"Registró una venta de ${monto:,.2f} en {farmacia_nombre} ({fecha})"
+            )
+    
         except Exception as e:
             conn.rollback()
             st.error(e)
@@ -122,6 +129,14 @@ if modo == "Registro Rápido (Todas las farmacias)":
             conn.commit()
             st.success(f"✅ {len(registros)} ventas registradas")
 
+            registrar_log(
+                st.session_state["usuario"],
+                "REGISTRO_VENTA",
+                f"Registró {len(registros)} ventas personalizadas ({fecha})"
+            )
+
+
+            
         except Exception as e:
             conn.rollback()
             st.error(e)
@@ -166,6 +181,14 @@ if modo == "Registro Personalizado":
 
             conn.commit()
             st.success(f"✅ {len(registros)} ventas registradas")
+
+            registrar_log(
+                st.session_state["usuario"],
+                "REGISTRO_VENTA",
+                f"Registró {len(registros)} ventas (registro rápido) ({fecha})"
+            )
+
+
 
         except Exception as e:
             conn.rollback()
@@ -244,6 +267,14 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
             conn.commit()
             st.success("✅ Cambios guardados correctamente")
 
+            registrar_log(
+                st.session_state["usuario"],
+                "MODIFICACION_VENTA",
+                f"Modificó venta ID {r['venta_id']}"
+
+            )
+
+
         except Exception as e:
             conn.rollback()
             st.error(e)
@@ -263,6 +294,15 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
             )
             conn.commit()
             st.success("🗑 Registro eliminado correctamente")
+
+            registrar_log(
+                st.session_state["usuario"],
+                "ELIMINACION_VENTA",
+                f"Eliminó venta ID {borrar_id}"
+
+
+            )
+
 
         except Exception as e:
             conn.rollback()
