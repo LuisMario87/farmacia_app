@@ -5,7 +5,7 @@ def registrar_log(usuario, accion, descripcion):
     cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT INTO logs (
+        INSERT INTO logs_auditoria (
             usuario_id,
             usuario_nombre,
             accion,
