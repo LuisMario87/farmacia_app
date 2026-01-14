@@ -30,7 +30,7 @@ SELECT
     accion,
     descripcion,
     fecha
-FROM logs
+FROM logs_auditoria
 ORDER BY fecha DESC;
 """, conn)
 
