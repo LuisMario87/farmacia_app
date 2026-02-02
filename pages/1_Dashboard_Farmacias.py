@@ -410,10 +410,11 @@ st.divider()
 
 ventas_diarias = (
     df_filt
-    .groupby(df_filt["fecha"].dt.date)["ventas_totales"]
+    .groupby(["farmacia", df_filt["fecha"].dt.date])["ventas_totales"]
     .sum()
     .reset_index()
 )
+
 
 prom_diario = ventas_diarias["ventas_totales"].mean()
 
@@ -426,21 +427,34 @@ if mes_sel != "Todos" and anio_sel != "Todos":
 else:
     dias_restantes = 0
 
+dias_mes = monthrange(anio_sel, mes_num)[1]
+
+proyeccion_total = 0
+
+for farmacia, df_farma in ventas_diarias.groupby("farmacia"):
+    prom_diario = df_farma["ventas_totales"].mean()
+    ultimo_dia = pd.to_datetime(df_farma["fecha"]).max().day
+    dias_restantes = dias_mes - ultimo_dia
+
+    if dias_restantes > 0:
+        proyeccion_total += prom_diario * dias_restantes
+
 proyeccion_restante = prom_diario * dias_restantes
-ventas_actuales = ventas_diarias["ventas_totales"].sum()
-ventas_proyectadas = ventas_actuales + proyeccion_restante
+ventas_actuales = df_filt["ventas_totales"].sum()
+ventas_proyectadas = ventas_actuales + proyeccion_total
 
 st.subheader("🔮 Proyección de Ventas")
 
 c1, c2, c3 = st.columns(3)
 
 c1.metric("Ventas actuales", f"${ventas_actuales:,.2f}")
-c2.metric("Proyección restante", f"${proyeccion_restante:,.2f}")
+c2.metric("Proyección restante", f"${proyeccion_total:,.2f}")
 c3.metric("Proyección fin de mes", f"${ventas_proyectadas:,.2f}")
 
 st.caption(
-    "📌 Proyección basada en el promedio diario de ventas del periodo seleccionado."
+    "📌 Proyección calculada por farmacia, considerando días faltantes individuales."
 )
+
 
 # ---------------------------------
 # 4️⃣ PROMEDIOS (BASADOS EN VENTAS DIARIAS)
