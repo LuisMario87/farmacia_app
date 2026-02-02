@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+from calendar import monthrange
 # ---------------------------------
 # FECHA ACTUAL (DEFAULT FILTROS)
 # ---------------------------------
@@ -403,6 +404,43 @@ else:
 st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
+# ---------------------------------
+# Proyecciones
+# ---------------------------------
+
+ventas_diarias = (
+    df_filt
+    .groupby(df_filt["fecha"].dt.date)["ventas_totales"]
+    .sum()
+    .reset_index()
+)
+
+prom_diario = ventas_diarias["ventas_totales"].mean()
+
+
+
+if mes_sel != "Todos" and anio_sel != "Todos":
+    dias_mes = monthrange(anio_sel, mes_num)[1]
+    ultimo_dia_con_datos = ventas_diarias["fecha"].max().day
+    dias_restantes = dias_mes - ultimo_dia_con_datos
+else:
+    dias_restantes = 0
+
+proyeccion_restante = prom_diario * dias_restantes
+ventas_actuales = ventas_diarias["ventas_totales"].sum()
+ventas_proyectadas = ventas_actuales + proyeccion_restante
+
+st.subheader("🔮 Proyección de Ventas")
+
+c1, c2, c3 = st.columns(3)
+
+c1.metric("Ventas actuales", f"${ventas_actuales:,.2f}")
+c2.metric("Proyección restante", f"${proyeccion_restante:,.2f}")
+c3.metric("Proyección fin de mes", f"${ventas_proyectadas:,.2f}")
+
+st.caption(
+    "📌 Proyección basada en el promedio diario de ventas del periodo seleccionado."
+)
 
 # ---------------------------------
 # 4️⃣ PROMEDIOS (BASADOS EN VENTAS DIARIAS)
