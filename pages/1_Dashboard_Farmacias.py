@@ -350,27 +350,18 @@ if tipo == "Diaria":
         pd.to_datetime(df_trend["fecha"]).dt.strftime("%A").map(DIAS_ES)
     )
 
-    df_trend["fecha_real"] = pd.to_datetime(df_trend["fecha"])
-
-    df_trend["fecha_hover"] = (
-        df_trend["fecha_real"].dt.strftime("%A %d de %B")
-        .replace(DIAS_ES, regex=True)
-        .replace(MESES_ES, regex=True)
-    )
-
+ 
     fig = px.line(
         df_trend,
         x="Etiqueta",
         y="ventas_totales",
         markers=True,
-        title="Tendencia Diaria (una semana)",
-        custom_data=["fecha_hover"]
+        title="Tendencia Diaria (una semana)"
+       
     )
-
     fig.update_traces(
         hovertemplate=
-        "<b>%{customdata[0]|%A %d de %B}</b><br>" + 
-        "Ventas: $%{y:,.2f}<extra></extra>"
+        "<b>%{x}</b><br>" + "Ventas: $%{y:,.2f}<extra></extra>"
     )
 
 # ===== SEMANAL =====
