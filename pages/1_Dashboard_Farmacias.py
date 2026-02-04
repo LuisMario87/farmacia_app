@@ -350,6 +350,8 @@ if tipo == "Diaria":
         pd.to_datetime(df_trend["fecha"]).dt.strftime("%A").map(DIAS_ES)
     )
 
+    df_trend["fecha_real"] = pd.to_datetime(df_trend["fecha"])
+
     df_trend["fecha_hover"] = (
         df_trend["fecha_real"].dt.strftime("%A %d de %B")
         .replace(DIAS_ES, regex=True)
