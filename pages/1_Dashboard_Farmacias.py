@@ -351,7 +351,7 @@ if tipo == "Diaria":
     )
 
     df_trend["fecha_hover"] = (
-        df_trend["fecha_real"].dt.strftime("%A %d %B")
+        df_trend["fecha"].dt.strftime("%A %d de %B")
         .replace(DIAS_ES, regex=True)
         .replace(MESES_ES, regex=True)
     )
@@ -367,7 +367,8 @@ if tipo == "Diaria":
 
     fig.update_traces(
         hovertemplate=
-        "<b>%{customdata[0]|%A %d de %B}</b><br>" + "Ventas: $%{y:,.2f}<extra></extra>"
+        "<b>%{customdata[0]|%A %d de %B}</b><br>" + 
+        "Ventas: $%{y:,.2f}<extra></extra>"
     )
 
 # ===== SEMANAL =====
