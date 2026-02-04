@@ -361,9 +361,10 @@ if tipo == "Diaria":
         x="Etiqueta",
         y="ventas_totales",
         markers=True,
-        title="Tendencia Diaria (una semana)"
+        title="Tendencia Diaria (una semana)",
         custom_data=["fecha_hover"]
     )
+
     fig.update_traces(
         hovertemplate=
         "<b>%{customdata[0]|%A %d de %B}</b><br>" + "Ventas: $%{y:,.2f}<extra></extra>"
