@@ -357,6 +357,10 @@ if tipo == "Diaria":
         markers=True,
         title="Tendencia Diaria (una semana)"
     )
+    fig.update_traces(
+        hovertemplate=
+        "<b>%{x}</b><br>" + "Ventas: $%{y:,.2f}<extra></extra>"
+    )
 
 # ===== SEMANAL =====
 elif tipo == "Semanal":
@@ -376,6 +380,11 @@ elif tipo == "Semanal":
         y="ventas_totales",
         markers=True,
         title="Tendencia Semanal"
+    )
+
+    fig.update_traces(
+        hovertemplate=
+        "<b>%{x}</b><br>" + "Ventas: $%{y:,.2f}<extra></extra>"
     )
 
 # ===== MENSUAL =====
@@ -399,6 +408,10 @@ else:
         y="ventas_totales",
         markers=True,
         title="Tendencia Mensual"
+    )
+    fig.update_traces(
+        hovertemplate=
+        "<b>%{x}</b><br>" + "Ventas: $%{y:,.2f}<extra></extra>"
     )
 
 st.plotly_chart(fig, use_container_width=True)
