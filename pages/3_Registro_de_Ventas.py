@@ -217,7 +217,7 @@ if modo == "Registro Personalizado":
             st.error(e)
 
 # =================================
-# EDICIÓN / ELIMINACIÓN (SUSTITUIR)
+# EDICIÓN / ELIMINACIÓN
 # =================================
 st.divider()
 
@@ -236,89 +236,99 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
         limit_sql = ""
 
     query = f"""
-        SELECT v.venta_id, v.farmacia_id, f.nombre, v.fecha, v.tipo_registro, v.ventas_totales
+        SELECT v.venta_id, f.nombre, v.fecha, v.tipo_registro, v.ventas_totales
         FROM ventas v
         JOIN farmacias f ON v.farmacia_id = f.farmacia_id
         ORDER BY v.created_at DESC
         {limit_sql};
     """
+
     cursor.execute(query)
-    rows = cursor.fetchall()
 
-    if not rows:
-        st.info("No hay registros para mostrar.")
-    else:
-        df_recent = pd.DataFrame(rows, columns=["venta_id", "farmacia_id", "farmacia", "fecha", "tipo_registro", "monto"])
+    df_recent = pd.DataFrame(
+        cursor.fetchall(),
+        columns=["venta_id", "farmacia", "fecha", "tipo_registro", "monto"]
+    )
 
-        st.markdown("### Registros recientes")
-        st.dataframe(df_recent[["venta_id", "farmacia", "fecha", "tipo_registro", "monto"]], use_container_width=True)
+    # Column config para desplegables
+    edited = st.data_editor(
+        df_recent,
+        use_container_width=True,
+        num_rows="fixed",
+        column_config={
+            "farmacia": st.column_config.SelectboxColumn(
+                "Farmacia",
+                options=farmacia_nombres
+            ),
+            "tipo_registro": st.column_config.SelectboxColumn(
+                "Tipo de registro",
+                options=["diario", "semanal", "mensual"]
+            )
+        }
+    )
 
-        # Seleccionar venta por ID
-        venta_ids = df_recent["venta_id"].tolist()
-        selected_id = st.selectbox("Selecciona la venta a editar/eliminar (ID)", venta_ids)
+    if st.button("💾 Guardar cambios"):
+        try:
+            for _, r in edited.iterrows():
+                cursor.execute("""
+                    UPDATE ventas
+                    SET 
+                        farmacia_id = %s,
+                        fecha = %s,
+                        tipo_registro = %s,
+                        ventas_totales = %s
+                    WHERE venta_id = %s
+                """, (
+                    farmacia_dict[r["farmacia"]],
+                    r["fecha"],
+                    r["tipo_registro"],
+                    r["monto"],
+                    r["venta_id"]
+                ))
 
-        # Cargar datos de la venta seleccionada
-        selected_row = df_recent[df_recent["venta_id"] == selected_id].iloc[0]
+            conn.commit()
+            st.success("✅ Cambios guardados correctamente")
 
-        st.subheader("Editar venta")
-        farmacia_actual = farmacia_reverse[selected_row["farmacia_id"]]
-        farmacia_nuevo = st.selectbox("Farmacia", farmacia_nombres, index=farmacia_nombres.index(farmacia_actual))
-        fecha_nueva = st.date_input("Fecha", value=pd.to_datetime(selected_row["fecha"]).date())
-        tipo_nuevo = st.selectbox("Tipo de registro", ["diario", "semanal", "mensual"], index=["diario", "semanal", "mensual"].index(selected_row["tipo_registro"]))
-        monto_nuevo = st.number_input("Monto", min_value=0.0, step=500.0, format="%.2f", value=float(selected_row["monto"]))
+            registrar_log(
+                st.session_state["usuario"],
+                "MODIFICACION_VENTA",
+                f"Modificó venta ID {r['venta_id']}"
 
-        def venta_duplicada_update(cursor, farmacia_id, fecha, venta_id):
-            cursor.execute("""
-                SELECT 1 FROM ventas
-                WHERE farmacia_id = %s AND fecha = %s AND venta_id <> %s
-                LIMIT 1
-            """, (farmacia_id, fecha, venta_id))
-            return cursor.fetchone() is not None
+            )
 
-        col1, col2 = st.columns(2)
 
-        with col1:
-            if st.button("💾 Guardar cambios"):
-                if monto_nuevo <= 0:
-                    st.error("❌ El monto debe ser mayor a 0")
-                else:
-                    fid_nuevo = farmacia_dict[farmacia_nuevo]
-                    if venta_duplicada_update(cursor, fid_nuevo, fecha_nueva, selected_id):
-                        st.error("❌ Ya existe una venta para esa farmacia y fecha (otro registro).")
-                    else:
-                        try:
-                            cursor.execute("""
-                                UPDATE ventas
-                                SET farmacia_id = %s, fecha = %s, tipo_registro = %s, ventas_totales = %s
-                                WHERE venta_id = %s
-                            """, (fid_nuevo, fecha_nueva, tipo_nuevo, monto_nuevo, selected_id))
-                            conn.commit()
-                            st.success("✅ Cambios guardados correctamente")
+        except Exception as e:
+            conn.rollback()
+            st.error(e)
 
-                            registrar_log(
-                                st.session_state["usuario"],
-                                "MODIFICACION_VENTA",
-                                f"Modificó venta ID {selected_id}: farmacia={farmacia_nuevo}, fecha={fecha_nueva}, tipo={tipo_nuevo}, monto={monto_nuevo}"
-                            )
-                        except Exception as e:
-                            conn.rollback()
-                            st.error(e)
+    st.subheader("🗑 Eliminar registro")
 
-        with col2:
-            if st.button("❌ Eliminar registro"):
-                try:
-                    cursor.execute("DELETE FROM ventas WHERE venta_id = %s", (selected_id,))
-                    conn.commit()
-                    st.success("🗑 Registro eliminado correctamente")
+    borrar_id = st.selectbox(
+        "Selecciona el ID a eliminar",
+        df_recent["venta_id"]
+    )
 
-                    registrar_log(
-                        st.session_state["usuario"],
-                        "ELIMINACION_VENTA",
-                        f"Eliminó venta ID {selected_id}"
-                    )
-                except Exception as e:
-                    conn.rollback()
-                    st.error(e)
+    if st.button("❌ Eliminar"):
+        try:
+            cursor.execute(
+                "DELETE FROM ventas WHERE venta_id = %s",
+                (borrar_id,)
+            )
+            conn.commit()
+            st.success("🗑 Registro eliminado correctamente")
+
+            registrar_log(
+                st.session_state["usuario"],
+                "ELIMINACION_VENTA",
+                f"Eliminó venta ID {borrar_id}"
+
+
+            )
+
+
+        except Exception as e:
+            conn.rollback()
+            st.error(e)
 
 
 st.sidebar.success(
