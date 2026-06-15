@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
+from reports.excel_consulta_especifica import generar_excel_consulta_especifica
+
 # ===============================
 # FECHA ACTUAL (DEFAULT FILTROS)
 # ===============================
@@ -12,7 +14,6 @@ mes_actual = hoy.month
 from utils.conexionASupabase import get_connection
 from reports.pdf_gastos import generar_pdf_gastos
 from reports.pdf_resumen import generar_pdf_resumen_financiero
-from reports.excel_consulta_especifica import generar_excel_consulta_especifica
 
 # ===============================
 # CONFIG
@@ -594,7 +595,26 @@ with tab_consulta:
             file_name=f"consulta_financiera_{fecha_inicio}_{fecha_fin}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+    excel_data = generar_excel_consulta_especifica(
+        fecha_inicio,
+        fecha_fin,
+        ventas_farmacia,
+        gastos_farmacia,
+        utilidad_farmacia,
+        desglose,
+        df_v_consulta,
+        df_g_consulta,
+        ventas_total,
+        gastos_total,
+        utilidad
+    )
 
+    st.download_button(
+        "📊 Descargar Reporte Excel",
+        data=excel_data,
+        file_name=f"consulta_financiera_{fecha_inicio}_{fecha_fin}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     
     # ===============================
 # SIDEBAR INFO
