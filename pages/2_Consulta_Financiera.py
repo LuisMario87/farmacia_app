@@ -594,26 +594,7 @@ with tab_consulta:
             file_name=f"consulta_financiera_{fecha_inicio}_{fecha_fin}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-    excel_data = generar_excel_consulta_especifica(
-        fecha_inicio,
-        fecha_fin,
-        ventas_farmacia,
-        gastos_farmacia,
-        utilidad_farmacia,
-        desglose,
-        df_v_consulta,
-        df_g_consulta,
-        ventas_total,
-        gastos_total,
-        utilidad
-    )
 
-    st.download_button(
-        "📊 Descargar Reporte Excel 2",
-        data=excel_data,
-        file_name=f"consulta_financiera_{fecha_inicio}_{fecha_fin}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
     
     # ===============================
 # SIDEBAR INFO
