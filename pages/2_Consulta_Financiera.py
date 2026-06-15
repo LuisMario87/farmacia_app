@@ -462,7 +462,6 @@ with tab_consulta:
                 "fecha",
                 "farmacia",
                 "categoria",
-                "tipo_gasto",
                 "descripcion",
                 "monto"
             ]
