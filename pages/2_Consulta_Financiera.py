@@ -179,8 +179,8 @@ st.caption(f"📅 **Periodo analizado:** {periodo_kpi}")
 # ===============================
 # TABS
 # ===============================
-tab_ventas, tab_gastos, tab_resumen = st.tabs(
-    ["🟢 Ventas", "🔴 Gastos", "🔵 Resumen"]
+tab_ventas, tab_gastos, tab_resumen, tab_consulta = st.tabs(
+    ["🟢 Ventas", "🔴 Gastos", "🔵 Resumen","📊 Consulta Específica"]
 )
 
 # ===============================
@@ -318,7 +318,173 @@ with tab_resumen:
             mime="application/pdf"
         )
 
-# ===============================
+#
+# CONSULTA ESPECIFICA
+#
+with tab_consulta:
+
+    st.subheader("📊 Consulta Específica")
+
+    fecha_inicio = st.date_input(
+        "Fecha inicio",
+        key="consulta_inicio"
+    )
+
+    fecha_fin = st.date_input(
+        "Fecha fin",
+        key="consulta_fin"
+    )
+
+    farmacias_consulta = st.multiselect(
+        "Farmacias",
+        sorted(df_ventas["farmacia"].unique()),
+        default=sorted(df_ventas["farmacia"].unique())
+    )
+
+    df_v_consulta = df_ventas[
+        (df_ventas["fecha"] >= pd.to_datetime(fecha_inicio)) &
+        (df_ventas["fecha"] <= pd.to_datetime(fecha_fin)) &
+        (df_ventas["farmacia"].isin(farmacias_consulta))
+    ]
+
+    df_g_consulta = df_gastos[
+        (df_gastos["fecha"] >= pd.to_datetime(fecha_inicio)) &
+        (df_gastos["fecha"] <= pd.to_datetime(fecha_fin)) &
+        (df_gastos["farmacia"].isin(farmacias_consulta))
+    ]
+
+    ventas_total = df_v_consulta["ventas_totales"].sum()
+    gastos_total = df_g_consulta["monto"].sum()
+    utilidad = ventas_total - gastos_total
+
+    c1,c2,c3 = st.columns(3)
+
+    c1.metric(
+        "Ventas Totales",
+        f"${ventas_total:,.2f}"
+    )
+
+    c2.metric(
+        "Gastos Totales",
+        f"${gastos_total:,.2f}"
+    )
+
+    c3.metric(
+        "Utilidad Neta",
+        f"${utilidad:,.2f}"
+    )
+
+    ventas_farmacia = (
+        df_v_consulta
+        .groupby("farmacia")["ventas_totales"]
+        .sum()
+        .reset_index()
+    )
+
+    ventas_farmacia.columns = [
+        "Farmacia",
+        "Ventas"
+    ]
+
+    st.subheader("🏪 Ventas por Farmacia")
+
+    st.dataframe(
+        ventas_farmacia,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    gastos_farmacia = (
+        df_g_consulta
+        .groupby("farmacia")["monto"]
+        .sum()
+        .reset_index()
+    )
+
+    gastos_farmacia.columns = [
+        "Farmacia",
+        "Gastos"
+    ]
+
+    st.subheader("💸 Gastos por Farmacia")
+
+    st.dataframe(
+        gastos_farmacia,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    utilidad_farmacia = (
+        ventas_farmacia
+        .merge(
+            gastos_farmacia,
+            on="Farmacia",
+            how="left"
+        )
+    )
+
+    utilidad_farmacia["Gastos"] = utilidad_farmacia["Gastos"].fillna(0)
+
+    utilidad_farmacia["Utilidad"] = (
+        utilidad_farmacia["Ventas"]
+        - utilidad_farmacia["Gastos"]
+    )
+
+    st.subheader("📈 Utilidad por Farmacia")
+
+    st.dataframe(
+        utilidad_farmacia,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.subheader("🧾 Desglose de Gastos")
+
+    desglose = (
+        df_g_consulta
+        .groupby("categoria")["monto"]
+        .sum()
+        .reset_index()
+        .sort_values("monto", ascending=False)
+    )
+
+    st.dataframe(
+        desglose,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.subheader("📋 Gastos Detallados")
+
+    st.dataframe(
+        df_g_consulta[
+            [
+                "fecha",
+                "farmacia",
+                "categoria",
+                "tipo_gasto",
+                "descripcion",
+                "monto"
+            ]
+        ].sort_values("fecha"),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    import plotly.express as px
+
+    fig = px.bar(
+        utilidad_farmacia,
+        x="Farmacia",
+        y="Utilidad",
+        title="Utilidad por Farmacia"
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
+    # ===============================
 # SIDEBAR INFO
 # ===============================
 st.sidebar.success(
