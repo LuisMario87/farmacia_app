@@ -457,18 +457,28 @@ with tab_consulta:
     st.subheader("📋 Gastos Detallados")
 
     st.dataframe(
-        df_g_consulta[
-            [
-                "fecha",
-                "farmacia",
-                "categoria",
-                "descripcion",
-                "monto"
-            ]
-        ].sort_values("fecha"),
-        use_container_width=True,
-        hide_index=True
-    )
+    df_g_consulta[
+        [
+            "fecha",
+            "farmacia",
+            "categoria",
+            "descripcion",
+            "monto"
+        ]
+    ].sort_values("fecha"),
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "fecha": st.column_config.DateColumn("Fecha"),
+        "farmacia": st.column_config.TextColumn("Farmacia"),
+        "categoria": st.column_config.TextColumn("Categoría"),
+        "descripcion": st.column_config.TextColumn("Descripción"),
+        "monto": st.column_config.NumberColumn(
+            "Monto ($)",
+            format="$%.2f"
+        ),
+    }
+)
 
     import plotly.express as px
 
