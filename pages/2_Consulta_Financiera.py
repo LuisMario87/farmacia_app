@@ -12,7 +12,6 @@ mes_actual = hoy.month
 from utils.conexionASupabase import get_connection
 from reports.pdf_gastos import generar_pdf_gastos
 from reports.pdf_resumen import generar_pdf_resumen_financiero
-from reports.excel_consulta_especifica import generar_excel_consulta_especifica
 
 # ===============================
 # CONFIG
