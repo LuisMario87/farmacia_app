@@ -5,4 +5,5 @@ plotly
 bcrypt
 reportlab
 datetime
+openpyxl
 
