@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from io import BytesIO
 from datetime import datetime
 # ===============================
 # FECHA ACTUAL (DEFAULT FILTROS)
@@ -11,7 +12,7 @@ mes_actual = hoy.month
 from utils.conexionASupabase import get_connection
 from reports.pdf_gastos import generar_pdf_gastos
 from reports.pdf_resumen import generar_pdf_resumen_financiero
-
+from reports.excel_consulta_especifica import generar_excel_consulta
 
 # ===============================
 # CONFIG
@@ -484,6 +485,116 @@ with tab_consulta:
         fig,
         use_container_width=True
     )
+    st.divider()
+
+    st.subheader("📥 Exportar Consulta")
+
+    if st.button("📊 Generar Excel"):
+
+        output = BytesIO()
+
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+
+            # ==========================
+            # RESUMEN GENERAL
+            # ==========================
+            resumen_df = pd.DataFrame({
+                "Concepto": [
+                    "Ventas Totales",
+                    "Gastos Totales",
+                    "Utilidad Neta"
+                ],
+                "Monto": [
+                    ventas_total,
+                    gastos_total,
+                    utilidad
+                ]
+            })
+
+            resumen_df.to_excel(
+                writer,
+                sheet_name="Resumen",
+                index=False
+            )
+
+            # ==========================
+            # VENTAS POR FARMACIA
+            # ==========================
+            ventas_farmacia.to_excel(
+                writer,
+                sheet_name="Ventas por Farmacia",
+                index=False
+            )
+
+            # ==========================
+            # GASTOS POR FARMACIA
+            # ==========================
+            gastos_farmacia.to_excel(
+                writer,
+                sheet_name="Gastos por Farmacia",
+                index=False
+            )
+
+            # ==========================
+            # UTILIDAD POR FARMACIA
+            # ==========================
+            utilidad_farmacia.to_excel(
+                writer,
+                sheet_name="Utilidad por Farmacia",
+                index=False
+            )
+
+            # ==========================
+            # DESGLOSE DE GASTOS
+            # ==========================
+            desglose.to_excel(
+                writer,
+                sheet_name="Desglose Gastos",
+                index=False
+            )
+
+            # ==========================
+            # GASTOS DETALLADOS
+            # ==========================
+            df_g_consulta[
+                [
+                    "fecha",
+                    "farmacia",
+                    "categoria",
+                    "tipo_gasto",
+                    "descripcion",
+                    "monto"
+                ]
+            ].to_excel(
+                writer,
+                sheet_name="Gastos Detallados",
+                index=False
+            )
+
+            # ==========================
+            # VENTAS DETALLADAS
+            # ==========================
+            df_v_consulta[
+                [
+                    "fecha",
+                    "farmacia",
+                    "ventas_totales"
+                ]
+            ].to_excel(
+                writer,
+                sheet_name="Ventas Detalladas",
+                index=False
+            )
+
+        excel_data = output.getvalue()
+
+        st.download_button(
+            label="⬇️ Descargar Excel",
+            data=excel_data,
+            file_name=f"consulta_financiera_{fecha_inicio}_{fecha_fin}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    
     # ===============================
 # SIDEBAR INFO
 # ===============================
