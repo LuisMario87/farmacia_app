@@ -134,7 +134,55 @@ if st.button("💾 Registrar gasto"):
 # =================================
 # EDICIÓN / ELIMINACIÓN
 # =================================
-    # -------------------------
+st.divider()
+
+with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
+
+    cantidad = st.selectbox(
+        "📄 Registros a mostrar",
+        ["Últimos 20", "Últimos 100", "Todos"]
+    )
+
+    limit_sql = (
+        "LIMIT 20" if cantidad == "Últimos 20"
+        else "LIMIT 100" if cantidad == "Últimos 100"
+        else ""
+    )
+
+    query = f"""
+        SELECT 
+            g.gasto_id,
+            f.nombre AS farmacia,
+            g.fecha,
+            g.folio,
+            g.categoria,
+            g.tipo_gasto,
+            g.descripcion,
+            g.monto
+        FROM gastos g
+        JOIN farmacias f ON g.farmacia_id = f.farmacia_id
+        ORDER BY g.created_at DESC
+        {limit_sql};
+    """
+
+    cursor.execute(query)
+
+    df_recent = pd.DataFrame(
+        cursor.fetchall(),
+        columns=[
+            "gasto_id",
+            "farmacia",
+            "fecha",
+            "folio",
+            "categoria",
+            "tipo_gasto",
+            "descripcion",
+            "monto"
+        ]
+     )
+
+
+        # -------------------------
     # TABLA SOLO LECTURA
     # -------------------------
     st.dataframe(
@@ -371,6 +419,7 @@ if st.button("💾 Registrar gasto"):
                     ]
 
                     st.rerun()
+
 # ---------------------------------
 # SIDEBAR
 # ---------------------------------
