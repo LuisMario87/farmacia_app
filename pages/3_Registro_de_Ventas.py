@@ -311,7 +311,8 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
         tipo_edit = st.selectbox(
             "Tipo de registro",
             ["diario"],
-            index=0
+            index=0,
+            key="edit_tipo_registro"
         )
 
         monto_edit = st.number_input(
