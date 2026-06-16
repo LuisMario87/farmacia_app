@@ -67,15 +67,23 @@ if st.session_state["usuario"]["rol"] != "admin":
 conn = get_connection()
 
 df = pd.read_sql("""
-SELECT 
+SELECT
     v.venta_id,
     f.nombre AS farmacia,
     v.ventas_totales,
     v.tipo_registro,
     v.fecha
 FROM ventas v
-JOIN farmacias f ON v.farmacia_id = f.farmacia_id
+JOIN farmacias f
+    ON v.farmacia_id = f.farmacia_id
 ORDER BY v.fecha;
+""", conn)
+
+df_farmacias_activas = pd.read_sql("""
+SELECT nombre
+FROM farmacias
+WHERE activa = TRUE
+ORDER BY nombre;
 """, conn)
 
 df_gastos = pd.read_sql("""
@@ -87,7 +95,8 @@ SELECT
     g.tipo_gasto,
     g.categoria
 FROM gastos g
-JOIN farmacias f ON g.farmacia_id = f.farmacia_id
+JOIN farmacias f
+    ON g.farmacia_id = f.farmacia_id
 ORDER BY g.fecha;
 """, conn)
 
@@ -101,7 +110,9 @@ df_gastos["fecha"] = pd.to_datetime(df_gastos["fecha"])
 # ---------------------------------
 st.sidebar.header("🔎 Filtros")
 
-farmacias = ["Todas"] + sorted(df["farmacia"].unique())
+farmacias = ["Todas"] + sorted(
+    df_farmacias_activas["nombre"].tolist()
+)
 farmacia_sel = st.sidebar.selectbox("Farmacia", farmacias)
 
 anios = ["Todos"] + sorted(df["fecha"].dt.year.unique())
@@ -194,8 +205,13 @@ if (
 ):
 
     if farmacia_sel == "Todas":
-        farmacias_validar = sorted(df["farmacia"].unique())
+
+        farmacias_validar = sorted(
+            df_farmacias_activas["nombre"].tolist()
+        )
+
     else:
+
         farmacias_validar = [farmacia_sel]
 
     # Mes actual o mes histórico
