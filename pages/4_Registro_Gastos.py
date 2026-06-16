@@ -134,150 +134,243 @@ if st.button("💾 Registrar gasto"):
 # =================================
 # EDICIÓN / ELIMINACIÓN
 # =================================
-st.divider()
-
-with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
-
-    cantidad = st.selectbox(
-        "📄 Registros a mostrar",
-        ["Últimos 20", "Últimos 100", "Todos"]
-    )
-
-    limit_sql = (
-        "LIMIT 20" if cantidad == "Últimos 20"
-        else "LIMIT 100" if cantidad == "Últimos 100"
-        else ""
-    )
-
-    query = f"""
-        SELECT 
-            g.gasto_id,
-            f.nombre AS farmacia,
-            g.fecha,
-            g.folio,
-            g.categoria,
-            g.tipo_gasto,
-            g.descripcion,
-            g.monto
-        FROM gastos g
-        JOIN farmacias f ON g.farmacia_id = f.farmacia_id
-        ORDER BY g.created_at DESC
-        {limit_sql};
-    """
-
-    cursor.execute(query)
-
-    df_recent = pd.DataFrame(
-        cursor.fetchall(),
-        columns=[
-            "gasto_id",
-            "farmacia",
-            "fecha",
-            "folio",
-            "categoria",
-            "tipo_gasto",
-            "descripcion",
-            "monto"
-        ]
-     )
-
-
-    edited = st.data_editor(
+    # -------------------------
+    # TABLA SOLO LECTURA
+    # -------------------------
+    st.dataframe(
         df_recent,
         use_container_width=True,
-        num_rows="fixed",
-        column_config={
-            "farmacia": st.column_config.SelectboxColumn(
-                "Farmacia",
-                options=farmacia_nombres
-            ),
+        hide_index=True
+    )
 
-            "folio": st.column_config.TextColumn(
-                "Folio"     
-            ),
+    if not df_recent.empty:
 
-            "categoria": st.column_config.SelectboxColumn(
-                "Categoría",
-                options=categorias
-            ),
-            "tipo_gasto": st.column_config.SelectboxColumn(
-                "Tipo de gasto",
-                options=tipos_gasto
-            ),
-            
+        st.subheader("✏️ Editar gasto")
 
-            "descripcion": st.column_config.TextColumn(
-                "Descripción"
-            )
+        opciones = {
+            f"{row['farmacia']} | {row['fecha']} | {row['categoria']} | ${row['monto']:,.2f}":
+            row["gasto_id"]
+            for _, row in df_recent.iterrows()
         }
-    )
 
-    if st.button("💾 Guardar cambios"):
-        try:
-            for _, r in edited.iterrows():
-                cursor.execute("""
-                    UPDATE gastos
-                    SET
-                        farmacia_id = %s,
-                        fecha = %s,
-                        folio = %s,
-                        categoria = %s,
-                        tipo_gasto = %s,
-                        descripcion = %s,
-                        monto = %s
-                    WHERE gasto_id = %s
-                """, (
-                    farmacia_dict[r["farmacia"]],
-                    r["fecha"],
-                    r["folio"],
-                    r["categoria"],
-                    r["tipo_gasto"],
-                    r["descripcion"],
-                    r["monto"],
-                    r["gasto_id"]
-                ))
+        seleccion = st.selectbox(
+            "Selecciona el gasto",
+            options=list(opciones.keys()),
+            key="seleccion_gasto"
+        )
 
+        gasto_id_seleccionado = opciones[seleccion]
 
-            conn.commit()
-            st.success("✅ Cambios guardados correctamente")
+        registro = df_recent[
+            df_recent["gasto_id"] == gasto_id_seleccionado
+        ].iloc[0]
 
+        farmacia_edit = st.selectbox(
+            "Farmacia",
+            farmacia_nombres,
+            index=farmacia_nombres.index(
+                registro["farmacia"]
+            ),
+            key=f"edit_farmacia_{gasto_id_seleccionado}"
+        )
 
-            registrar_log(
-                st.session_state["usuario"],
-                "MODIFICACION_GASTO",
-                f"Modificó gasto ID {r['gasto_id']}"
+        fecha_edit = st.date_input(
+            "Fecha",
+            value=pd.to_datetime(
+                registro["fecha"]
+            ).date(),
+            key=f"edit_fecha_{gasto_id_seleccionado}"
+        )
+
+        categoria_edit = st.selectbox(
+            "Categoría",
+            categorias,
+            index=categorias.index(
+                registro["categoria"]
+            ),
+            key=f"edit_categoria_{gasto_id_seleccionado}"
+        )
+
+        tipo_edit = st.selectbox(
+            "Tipo de gasto",
+            tipos_gasto,
+            index=tipos_gasto.index(
+                registro["tipo_gasto"]
+            ),
+            key=f"edit_tipo_{gasto_id_seleccionado}"
+        )
+
+        folio_edit = st.text_input(
+            "Folio",
+            value="" if pd.isna(registro["folio"]) else str(registro["folio"]),
+            key=f"edit_folio_{gasto_id_seleccionado}"
+        )
+
+        descripcion_edit = st.text_area(
+            "Descripción",
+            value="" if pd.isna(registro["descripcion"]) else str(registro["descripcion"]),
+            key=f"edit_descripcion_{gasto_id_seleccionado}"
+        )
+
+        monto_edit = st.number_input(
+            "Monto",
+            min_value=0.0,
+            value=float(registro["monto"]),
+            step=100.0,
+            key=f"edit_monto_{gasto_id_seleccionado}"
+        )
+
+        col1, col2, col3 = st.columns(3)
+
+        # -------------------------
+        # GUARDAR
+        # -------------------------
+        with col1:
+
+            if st.button(
+                "💾 Guardar cambios",
+                use_container_width=True,
+                key=f"guardar_{gasto_id_seleccionado}"
+            ):
+
+                try:
+
+                    cursor.execute("""
+                        UPDATE gastos
+                        SET
+                            farmacia_id = %s,
+                            fecha = %s,
+                            folio = %s,
+                            categoria = %s,
+                            tipo_gasto = %s,
+                            descripcion = %s,
+                            monto = %s
+                        WHERE gasto_id = %s
+                    """, (
+                        farmacia_dict[farmacia_edit],
+                        fecha_edit,
+                        folio_edit,
+                        categoria_edit,
+                        tipo_edit,
+                        descripcion_edit,
+                        monto_edit,
+                        gasto_id_seleccionado
+                    ))
+
+                    conn.commit()
+
+                    registrar_log(
+                        st.session_state["usuario"],
+                        "MODIFICACION_GASTO",
+                        f"Modificó gasto ID {gasto_id_seleccionado}"
+                    )
+
+                    st.success(
+                        "✅ Gasto actualizado correctamente"
+                    )
+
+                    st.rerun()
+
+                except Exception as e:
+                    conn.rollback()
+                    st.error(e)
+
+        # -------------------------
+        # ELIMINAR
+        # -------------------------
+        with col2:
+
+            if st.button(
+                "🗑 Eliminar gasto",
+                use_container_width=True,
+                key=f"eliminar_{gasto_id_seleccionado}"
+            ):
+
+                st.session_state[
+                    "confirmar_eliminacion_gasto"
+                ] = gasto_id_seleccionado
+
+        # -------------------------
+        # CANCELAR
+        # -------------------------
+        with col3:
+
+            if st.button(
+                "❌ Cancelar",
+                use_container_width=True,
+                key=f"cancelar_{gasto_id_seleccionado}"
+            ):
+
+                st.rerun()
+
+        # -------------------------
+        # CONFIRMAR ELIMINACIÓN
+        # -------------------------
+        if (
+            "confirmar_eliminacion_gasto"
+            in st.session_state
+            and
+            st.session_state[
+                "confirmar_eliminacion_gasto"
+            ] == gasto_id_seleccionado
+        ):
+
+            st.warning(
+                "⚠️ Esta acción no se puede deshacer"
             )
 
-        except Exception as e:
-            conn.rollback()
-            st.error(e)
+            col_yes, col_no = st.columns(2)
 
-    st.subheader("🗑 Eliminar gasto")
+            with col_yes:
 
-    borrar_id = st.selectbox(
-        "Selecciona el gasto a eliminar",
-        df_recent["gasto_id"]
-    )
+                if st.button(
+                    "✅ Sí, eliminar definitivamente",
+                    key=f"confirmar_{gasto_id_seleccionado}"
+                ):
 
-    if st.button("❌ Eliminar gasto"):
-        try:
-            cursor.execute(
-                "DELETE FROM gastos WHERE gasto_id = %s",
-                (borrar_id,)
-            )
-            conn.commit()
-            st.success("🗑 Gasto eliminado correctamente")
+                    try:
 
-            registrar_log(
-                st.session_state["usuario"],
-                "ELIMINACION_GASTO",
-                f"Eliminó gasto ID {borrar_id}"
-            )
+                        cursor.execute("""
+                            DELETE FROM gastos
+                            WHERE gasto_id = %s
+                        """, (
+                            gasto_id_seleccionado,
+                        ))
 
-        except Exception as e:
-            conn.rollback()
-            st.error(e)
+                        conn.commit()
 
+                        registrar_log(
+                            st.session_state["usuario"],
+                            "ELIMINACION_GASTO",
+                            f"Eliminó gasto ID {gasto_id_seleccionado}"
+                        )
+
+                        del st.session_state[
+                            "confirmar_eliminacion_gasto"
+                        ]
+
+                        st.success(
+                            "🗑 Gasto eliminado correctamente"
+                        )
+
+                        st.rerun()
+
+                    except Exception as e:
+                        conn.rollback()
+                        st.error(e)
+
+            with col_no:
+
+                if st.button(
+                    "Cancelar eliminación",
+                    key=f"cancelar_delete_{gasto_id_seleccionado}"
+                ):
+
+                    del st.session_state[
+                        "confirmar_eliminacion_gasto"
+                    ]
+
+                    st.rerun()
 # ---------------------------------
 # SIDEBAR
 # ---------------------------------
