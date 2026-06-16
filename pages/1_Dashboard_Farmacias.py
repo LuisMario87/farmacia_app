@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 from calendar import monthrange
 # ---------------------------------
 # FECHA ACTUAL (DEFAULT FILTROS)
@@ -183,6 +183,82 @@ if farmacia_sel != "Todas":
     periodo_kpi = f"{farmacia_sel} — {periodo_kpi}"
 
 st.caption(f"📅 **Periodo analizado:** {periodo_kpi}")
+
+# ---------------------------------
+# VALIDACIÓN DE REGISTROS FALTANTES
+# ---------------------------------
+
+if (
+    anio_sel != "Todos"
+    and mes_sel != "Todos"
+):
+
+    if farmacia_sel == "Todas":
+        farmacias_validar = sorted(df["farmacia"].unique())
+    else:
+        farmacias_validar = [farmacia_sel]
+
+    # Mes actual o mes histórico
+    hoy = datetime.today()
+
+    if anio_sel == hoy.year and mes_num == hoy.month:
+        ultimo_dia = hoy.day
+    else:
+        ultimo_dia = monthrange(anio_sel, mes_num)[1]
+
+    fecha_inicio = datetime(anio_sel, mes_num, 1)
+
+    fechas_esperadas = []
+
+    for dia in range(ultimo_dia):
+        fecha_actual = fecha_inicio + timedelta(days=dia)
+
+        for farmacia in farmacias_validar:
+            fechas_esperadas.append(
+                (
+                    farmacia,
+                    fecha_actual.date()
+                )
+            )
+
+    registros_esperados = set(fechas_esperadas)
+
+    registros_existentes = set(
+        zip(
+            df_filt["farmacia"],
+            df_filt["fecha"].dt.date
+        )
+    )
+
+    faltantes = registros_esperados - registros_existentes
+
+    if len(faltantes) > 0:
+
+        st.warning(
+            f"⚠️ Mes incompleto. Faltan {len(faltantes)} registros de ventas por capturar."
+        )
+
+        with st.expander("🔍 Ver registros faltantes"):
+
+            df_faltantes = pd.DataFrame(
+                sorted(faltantes),
+                columns=["Farmacia", "Fecha"]
+            )
+
+            df_faltantes["Fecha"] = pd.to_datetime(
+                df_faltantes["Fecha"]
+            ).dt.strftime("%d/%m/%Y")
+
+            st.dataframe(
+                df_faltantes,
+                use_container_width=True
+            )
+
+    else:
+
+        st.success(
+            "✅ Todos los registros de ventas del periodo están completos."
+        )
 
 # ---------------------------------
 # 1️⃣ ESTADO DE RESULTADOS
