@@ -82,7 +82,7 @@ ORDER BY v.fecha;
 df_farmacias_activas = pd.read_sql("""
 SELECT nombre
 FROM farmacias
-WHERE activa = TRUE
+WHERE estado = 'ACTIVA'
 ORDER BY nombre;
 """, conn)
 
