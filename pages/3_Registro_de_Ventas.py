@@ -216,6 +216,7 @@ if modo == "Registro Personalizado":
             conn.rollback()
             st.error(e)
 
+
 # =================================
 # EDICIÓN / ELIMINACIÓN
 # =================================
@@ -236,9 +237,15 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
         limit_sql = ""
 
     query = f"""
-        SELECT v.venta_id, f.nombre, v.fecha, v.tipo_registro, v.ventas_totales
+        SELECT
+            v.venta_id,
+            f.nombre,
+            v.fecha,
+            v.tipo_registro,
+            v.ventas_totales
         FROM ventas v
-        JOIN farmacias f ON v.farmacia_id = f.farmacia_id
+        JOIN farmacias f
+            ON v.farmacia_id = f.farmacia_id
         ORDER BY v.created_at DESC
         {limit_sql};
     """
@@ -247,90 +254,201 @@ with st.expander("⚠️ ¿Cometiste un error? Editar o eliminar registros"):
 
     df_recent = pd.DataFrame(
         cursor.fetchall(),
-        columns=["venta_id", "farmacia", "fecha", "tipo_registro", "monto"]
+        columns=[
+            "venta_id",
+            "farmacia",
+            "fecha",
+            "tipo_registro",
+            "monto"
+        ]
     )
 
-    # Column config para desplegables
-    edited = st.data_editor(
+    # -------------------------
+    # TABLA SOLO LECTURA
+    # -------------------------
+    st.dataframe(
         df_recent,
         use_container_width=True,
-        num_rows="fixed",
-        column_config={
-            "farmacia": st.column_config.SelectboxColumn(
-                "Farmacia",
-                options=farmacia_nombres
-            ),
-            "tipo_registro": st.column_config.SelectboxColumn(
-                "Tipo de registro",
-                options=["diario", "semanal", "mensual"]
-            )
+        hide_index=True
+    )
+
+    if not df_recent.empty:
+
+        st.subheader("✏️ Editar registro")
+
+        opciones = {
+            f"{row['farmacia']} | {row['fecha']} | ${row['monto']:,.2f}":
+            row["venta_id"]
+            for _, row in df_recent.iterrows()
         }
-    )
 
-    if st.button("💾 Guardar cambios"):
-        try:
-            for _, r in edited.iterrows():
-                cursor.execute("""
-                    UPDATE ventas
-                    SET 
-                        farmacia_id = %s,
-                        fecha = %s,
-                        tipo_registro = %s,
-                        ventas_totales = %s
-                    WHERE venta_id = %s
-                """, (
-                    farmacia_dict[r["farmacia"]],
-                    r["fecha"],
-                    r["tipo_registro"],
-                    r["monto"],
-                    r["venta_id"]
-                ))
+        seleccion = st.selectbox(
+            "Selecciona el registro",
+            options=list(opciones.keys())
+        )
 
-            conn.commit()
-            st.success("✅ Cambios guardados correctamente")
+        venta_id_seleccionada = opciones[seleccion]
 
-            registrar_log(
-                st.session_state["usuario"],
-                "MODIFICACION_VENTA",
-                f"Modificó venta ID {r['venta_id']}"
+        registro = df_recent[
+            df_recent["venta_id"] == venta_id_seleccionada
+        ].iloc[0]
 
+        farmacia_edit = st.selectbox(
+            "Farmacia",
+            farmacia_nombres,
+            index=farmacia_nombres.index(
+                registro["farmacia"]
+            )
+        )
+
+        fecha_edit = st.date_input(
+            "Fecha",
+            value=pd.to_datetime(
+                registro["fecha"]
+            ).date()
+        )
+
+        tipo_edit = st.selectbox(
+            "Tipo de registro",
+            ["diario"],
+            index=0
+        )
+
+        monto_edit = st.number_input(
+            "Monto",
+            min_value=0.0,
+            value=float(registro["monto"]),
+            step=100.0
+        )
+
+        col1, col2, col3 = st.columns(3)
+
+        # -------------------------
+        # GUARDAR
+        # -------------------------
+        with col1:
+            if st.button(
+                "💾 Guardar cambios",
+                use_container_width=True
+            ):
+                try:
+
+                    cursor.execute("""
+                        UPDATE ventas
+                        SET
+                            farmacia_id = %s,
+                            fecha = %s,
+                            tipo_registro = %s,
+                            ventas_totales = %s
+                        WHERE venta_id = %s
+                    """, (
+                        farmacia_dict[farmacia_edit],
+                        fecha_edit,
+                        tipo_edit,
+                        monto_edit,
+                        venta_id_seleccionada
+                    ))
+
+                    conn.commit()
+
+                    registrar_log(
+                        st.session_state["usuario"],
+                        "MODIFICACION_VENTA",
+                        f"Modificó venta ID {venta_id_seleccionada}"
+                    )
+
+                    st.success(
+                        "✅ Registro actualizado correctamente"
+                    )
+
+                    st.rerun()
+
+                except Exception as e:
+                    conn.rollback()
+                    st.error(e)
+
+        # -------------------------
+        # ELIMINAR
+        # -------------------------
+        with col2:
+            if st.button(
+                "🗑 Eliminar registro",
+                use_container_width=True
+            ):
+                st.session_state[
+                    "confirmar_eliminacion"
+                ] = venta_id_seleccionada
+
+        # -------------------------
+        # CANCELAR
+        # -------------------------
+        with col3:
+            if st.button(
+                "❌ Cancelar",
+                use_container_width=True
+            ):
+                st.rerun()
+
+        # -------------------------
+        # CONFIRMACIÓN ELIMINAR
+        # -------------------------
+        if (
+            "confirmar_eliminacion"
+            in st.session_state
+            and
+            st.session_state["confirmar_eliminacion"]
+            == venta_id_seleccionada
+        ):
+
+            st.warning(
+                "⚠️ Esta acción no se puede deshacer"
             )
 
+            col_yes, col_no = st.columns(2)
 
-        except Exception as e:
-            conn.rollback()
-            st.error(e)
+            with col_yes:
+                if st.button(
+                    "✅ Sí, eliminar definitivamente"
+                ):
+                    try:
 
-    st.subheader("🗑 Eliminar registro")
+                        cursor.execute("""
+                            DELETE FROM ventas
+                            WHERE venta_id = %s
+                        """, (
+                            venta_id_seleccionada,
+                        ))
 
-    borrar_id = st.selectbox(
-        "Selecciona el ID a eliminar",
-        df_recent["venta_id"]
-    )
+                        conn.commit()
 
-    if st.button("❌ Eliminar"):
-        try:
-            cursor.execute(
-                "DELETE FROM ventas WHERE venta_id = %s",
-                (borrar_id,)
-            )
-            conn.commit()
-            st.success("🗑 Registro eliminado correctamente")
+                        registrar_log(
+                            st.session_state["usuario"],
+                            "ELIMINACION_VENTA",
+                            f"Eliminó venta ID {venta_id_seleccionada}"
+                        )
 
-            registrar_log(
-                st.session_state["usuario"],
-                "ELIMINACION_VENTA",
-                f"Eliminó venta ID {borrar_id}"
+                        del st.session_state[
+                            "confirmar_eliminacion"
+                        ]
 
+                        st.success(
+                            "🗑 Registro eliminado correctamente"
+                        )
 
-            )
+                        st.rerun()
 
+                    except Exception as e:
+                        conn.rollback()
+                        st.error(e)
 
-        except Exception as e:
-            conn.rollback()
-            st.error(e)
+            with col_no:
+                if st.button("Cancelar eliminación"):
 
+                    del st.session_state[
+                        "confirmar_eliminacion"
+                    ]
 
+                    st.rerun()
 st.sidebar.success(
     f"👤 {st.session_state['usuario']['nombre']}\n"
     f"Rol: {st.session_state['usuario']['rol']}"
