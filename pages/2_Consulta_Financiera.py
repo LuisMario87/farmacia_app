@@ -430,13 +430,6 @@ with tab_consulta:
         - utilidad_farmacia["Gastos"]
     )
 
-    st.subheader("📈 Utilidad por Farmacia")
-
-    st.dataframe(
-        utilidad_farmacia,
-        use_container_width=True,
-        hide_index=True
-    )
 
     st.subheader("🧾 Desglose de Gastos")
 
@@ -479,22 +472,14 @@ with tab_consulta:
         ),
     }
 )
+    st.subheader("📈 Utilidad por Farmacia")
 
-    import plotly.express as px
-
-    fig = px.bar(
+    st.dataframe(
         utilidad_farmacia,
-        x="Farmacia",
-        y="Utilidad",
-        title="Utilidad por Farmacia"
+        use_container_width=True,
+        hide_index=True
     )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
-    st.divider()
-
+    
     st.subheader("📥 Exportar Consulta")
 
     if st.button("📊 Generar Excel"):
