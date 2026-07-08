@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 
+from datetime import timedelta
 from utils.conexionASupabase import get_connection
 from utils.logger import registrar_log
 
@@ -49,6 +50,7 @@ tab1,tab2,tab3,tab4 = st.tabs([
 #----------------------------
 #GESTION DE PROVEEDORES
 #----------------------------
+
 
 
 
@@ -398,7 +400,106 @@ with tab3:
                 st.error(e)
         st.divider()
 
-    
+with tab2:
+
+    st.subheader("Registrar factura")
+
+    df_proveedores = pd.read_sql("""
+        SELECT
+            proveedor_id,
+            nombre,
+            dias_credito
+        FROM proveedores
+        WHERE estado='ACTIVO'
+        ORDER BY nombre
+    """, conn)
+
+    if df_proveedores.empty:
+        st.warning("No existen proveedores activos.")
+        st.stop()
+    with st.form("form_factura", clear_on_submit=True):
+
+        proveedor = st.selectbox(
+            "Proveedor",
+            df_proveedores["nombre"]
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            folio = st.text_input("Folio")
+
+            fecha_factura = st.date_input(
+                "Fecha de factura"
+            )
+
+        with col2:
+
+            monto = st.number_input(
+                "Monto",
+                min_value=0.0,
+                step=100.0,
+                format="%.2f"
+            )
+
+            estatus = st.selectbox(
+                "Estatus",
+                [
+                    "PENDIENTE",
+                    "PAGADA"
+                ]
+            )
+
+        observaciones = st.text_area(
+            "Observaciones"
+        )
+
+        guardar = st.form_submit_button(
+            "Guardar factura"
+        )
+    if guardar:
+
+        proveedor_id = int(
+            df_proveedores.loc[
+                df_proveedores["nombre"] == proveedor,
+                "proveedor_id"
+            ].iloc[0]
+        )
+
+        dias_credito = int(
+            df_proveedores.loc[
+                df_proveedores["nombre"] == proveedor,
+                "dias_credito"
+            ].iloc[0]
+        )
+    fecha_vencimiento = (
+    fecha_factura +
+    timedelta(days=dias_credito)
+    )
+    cursor.execute("""
+
+    SELECT COUNT(*)
+
+    FROM facturas
+
+    WHERE folio=%s
+    AND proveedor_id=%s
+
+    """,
+
+    (
+        folio.strip(),
+        proveedor_id
+    ))
+
+    if cursor.fetchone()[0] > 0:
+
+        st.error(
+            "Ya existe ese folio para este proveedor."
+        )
+
+    st.stop()
 
 # ===============================
 # SIDEBAR INFO
