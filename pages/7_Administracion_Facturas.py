@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-
-from datetime import timedelta
+from datetime import date, timedelta
 from utils.conexionASupabase import get_connection
 from utils.logger import registrar_log
 
@@ -404,157 +403,170 @@ with tab2:
 
     st.subheader("Registrar factura")
 
-    df_proveedores = pd.read_sql("""
+    df_proveedores_activos = pd.read_sql("""
         SELECT
             proveedor_id,
             nombre,
             dias_credito
         FROM proveedores
-        WHERE estado='ACTIVO'
+        WHERE estado = 'ACTIVO'
         ORDER BY nombre
     """, conn)
 
-    if df_proveedores.empty:
-        st.warning("No existen proveedores activos.")
-        st.stop()
-    with st.form("form_factura", clear_on_submit=True):
+    if df_proveedores_activos.empty:
 
-        proveedor = st.selectbox(
-            "Proveedor",
-            df_proveedores["nombre"]
-        )
+        st.warning("No existen proveedores activos para registrar facturas.")
 
-        col1, col2 = st.columns(2)
+    else:
 
-        with col1:
+        proveedores_nombres = df_proveedores_activos["nombre"].tolist()
 
-            folio = st.text_input("Folio")
+        with st.form("form_registrar_factura", clear_on_submit=True):
 
-            fecha_factura = st.date_input(
-                "Fecha de factura"
+            proveedor = st.selectbox(
+                "Proveedor",
+                proveedores_nombres
             )
 
-        with col2:
-
-            monto = st.number_input(
-                "Monto",
-                min_value=0.0,
-                step=100.0,
-                format="%.2f"
-            )
-
-            estatus = st.selectbox(
-                "Estatus",
-                [
-                    "PENDIENTE",
-                    "PAGADA"
-                ]
-            )
-
-        observaciones = st.text_area(
-            "Observaciones"
-        )
-
-        guardar = st.form_submit_button(
-            "Guardar factura"
-        )
-    if guardar:
-
-        proveedor_id = int(
-            df_proveedores.loc[
-                df_proveedores["nombre"] == proveedor,
-                "proveedor_id"
+            proveedor_row = df_proveedores_activos[
+                df_proveedores_activos["nombre"] == proveedor
             ].iloc[0]
-        )
 
-        dias_credito = int(
-            df_proveedores.loc[
-                df_proveedores["nombre"] == proveedor,
-                "dias_credito"
-            ].iloc[0]
-        )
-        fecha_vencimiento = (
-        fecha_factura +
-        timedelta(days=dias_credito)
-        )
-    cursor.execute("""
+            proveedor_id = int(proveedor_row["proveedor_id"])
+            dias_credito_default = int(proveedor_row["dias_credito"])
 
-    SELECT COUNT(*)
+            col1, col2 = st.columns(2)
 
-    FROM facturas
+            with col1:
 
-    WHERE folio=%s
-    AND proveedor_id=%s
+                folio = st.text_input(
+                    "Folio de factura"
+                )
 
-    """,
+                fecha_factura = st.date_input(
+                    "Fecha de factura",
+                    value=date.today()
+                )
 
-    (
-        folio.strip(),
-        proveedor_id
-    ))
+                dias_credito = st.number_input(
+                    "Días de crédito",
+                    min_value=0,
+                    max_value=365,
+                    value=dias_credito_default
+                )
 
-    if cursor.fetchone()[0] > 0:
+            with col2:
 
-        st.error(
-            "Ya existe ese folio para este proveedor."
-        )
+                monto = st.number_input(
+                    "Monto",
+                    min_value=0.0,
+                    step=100.0,
+                    format="%.2f"
+                )
 
-        st.stop()
-    try:
+                estatus = st.selectbox(
+                    "Estatus",
+                    ["PENDIENTE", "PAGADA", "CANCELADA"]
+                )
 
-        cursor.execute("""
+                fecha_vencimiento = fecha_factura + timedelta(
+                    days=int(dias_credito)
+                )
 
-            INSERT INTO facturas
-            (
+                st.info(
+                    f"Fecha de vencimiento calculada: {fecha_vencimiento.strftime('%d/%m/%Y')}"
+                )
+
+            observaciones = st.text_area(
+                "Observaciones"
+            )
+
+            guardar = st.form_submit_button(
+                "Guardar factura"
+            )
+
+        if guardar:
+
+            if folio.strip() == "":
+
+                st.error("El folio de la factura es obligatorio.")
+                st.stop()
+
+            if monto <= 0:
+
+                st.error("El monto debe ser mayor a 0.")
+                st.stop()
+
+            cursor.execute("""
+                SELECT COUNT(*)
+                FROM facturas
+                WHERE proveedor_id = %s
+                AND UPPER(folio) = UPPER(%s)
+            """, (
                 proveedor_id,
-                folio,
-                fecha_factura,
-                fecha_vencimiento,
-                monto,
-                estatus,
-                observaciones
-            )
+                folio.strip()
+            ))
 
-            VALUES
-            (
-                %s,
-                %s,
-                %s,
-                %s,
-                %s,
-                %s,
-                %s
-            )
+            existe = cursor.fetchone()[0]
 
-        """,
+            if existe > 0:
 
-        (
-            proveedor_id,
-            folio.strip(),
-            fecha_factura,
-            fecha_vencimiento,
-            monto,
-            estatus,
-            observaciones.strip()
-        ))
+                st.error("Ya existe una factura con ese folio para este proveedor.")
+                st.stop()
 
-        conn.commit()
-        registrar_log(
+            try:
 
-        st.session_state["usuario"],
+                cursor.execute("""
+                    INSERT INTO facturas
+                    (
+                        proveedor_id,
+                        folio,
+                        fecha_factura,
+                        dias_credito,
+                        fecha_vencimiento,
+                        monto,
+                        estatus,
+                        observaciones
+                    )
+                    VALUES
+                    (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                """, (
+                    proveedor_id,
+                    folio.strip(),
+                    fecha_factura,
+                    int(dias_credito),
+                    fecha_vencimiento,
+                    monto,
+                    estatus,
+                    observaciones.strip()
+                ))
 
-        "ALTA_FACTURA",
+                conn.commit()
 
-        f"Registró la factura {folio} del proveedor {proveedor}"
-        )   
-    
-        st.success("Factura registrada correctamente.")
-        st.rerun()
-    except Exception as e:
+                registrar_log(
+                    st.session_state["usuario"],
+                    "ALTA_FACTURA",
+                    f"Registró la factura {folio.strip()} del proveedor {proveedor}"
+                )
 
-        conn.rollback()
+                st.success("Factura registrada correctamente.")
 
-        st.error(e)
+                st.rerun()
+
+            except Exception as e:
+
+                conn.rollback()
+
+                st.error(e)
 
 # ===============================
 # SIDEBAR INFO
