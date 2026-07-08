@@ -44,6 +44,14 @@ tab1,tab2,tab3,tab4 = st.tabs([
 "📊 Estadísticas"
 
 ])
+
+
+#----------------------------
+#GESTION DE PROVEEDORES
+#----------------------------
+
+
+
 with tab3:
 
     st.subheader("Gestión de Proveedores")
@@ -119,9 +127,165 @@ with tab3:
         st.caption(
             f"Total proveedores: {len(df_proveedores)}"
         )
+        st.divider()
+
+    st.subheader("Editar proveedor")
+
+    if not df_proveedores.empty:
+
+        opciones = {
+            fila["nombre"]: fila["proveedor_id"]
+            for _, fila in df_proveedores.iterrows()
+        }
+
+        proveedor_sel = st.selectbox(
+            "Proveedor",
+            list(opciones.keys())
+        )
+
+        proveedor_id = opciones[proveedor_sel]
+
+        cursor.execute("""
+            SELECT
+                nombre,
+                contacto,
+                telefono,
+                correo,
+                dias_credito,
+                estado,
+                observaciones
+            FROM proveedores
+            WHERE proveedor_id=%s
+        """,(proveedor_id,))
+
+        datos = cursor.fetchone()
+        nombre_edit = st.text_input(
+        "Nombre",
+        value=datos[0]
+        )
+
+    col1,col2 = st.columns(2)
+
+    with col1:
+
+        contacto_edit = st.text_input(
+            "Contacto",
+            value=datos[1] or ""
+        )
+
+        telefono_edit = st.text_input(
+            "Teléfono",
+            value=datos[2] or ""
+        )
+
+    with col2:
+
+        correo_edit = st.text_input(
+            "Correo",
+            value=datos[3] or ""
+        )
+
+        dias_edit = st.number_input(
+            "Días de crédito",
+            min_value=0,
+            max_value=365,
+            value=datos[4]
+        )
+
+    estado_edit = st.selectbox(
+        "Estado",
+        ["ACTIVO","CERRADA"],
+        index=0 if datos[5]=="ACTIVO" else 1
+    )
+
+    observaciones_edit = st.text_area(
+        "Observaciones",
+        value=datos[6] or ""
+    )
+
+    col1,col2 = st.columns(2)
+    with col1:
+
+        if st.button("Guardar cambios"):
+
+            try:
+
+                cursor.execute("""
+
+                UPDATE proveedores
+
+                SET
+
+                    nombre=%s,
+
+                    contacto=%s,
+
+                    telefono=%s,
+
+                    correo=%s,
+
+                    dias_credito=%s,
+
+                    estado=%s,
+
+                    observaciones=%s
+
+                WHERE proveedor_id=%s
+
+                """,
+
+                (
+
+                    nombre_edit,
+
+                    contacto_edit,
+
+                    telefono_edit,
+
+                    correo_edit,
+
+                    dias_edit,
+
+                    estado_edit,
+
+                    observaciones_edit,
+
+                    proveedor_id
+
+                ))
+
+                conn.commit()
+
+                registrar_log(
+
+                    st.session_state["usuario"],
+
+                    "MODIFICACION_PROVEEDOR",
+
+                    f"Modificó proveedor {nombre_edit}"
+
+                )
+
+                st.success("Proveedor actualizado correctamente.")
+
+                st.rerun()
+
+            except Exception as e:
+
+                conn.rollback()
+
+                st.error(e)
+    with col2:
+
+        if estado_edit=="ACTIVO":
+
+            st.success("Proveedor activo")
+
+        else:
+
+            st.warning("Proveedor cerrado")
+
     st.divider()
-
-
 
 
     # ---------------------------------
