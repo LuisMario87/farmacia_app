@@ -36,7 +36,7 @@ tab1,tab2,tab3,tab4 = st.tabs([
 ])
 with tab3:
 
-    st.subheader("🏭 Gestión de Proveedores")
+    st.subheader("Gestión de Proveedores")
 
     # ----------------------------
     # FILTROS
@@ -46,7 +46,7 @@ with tab3:
 
     with col1:
         buscar = st.text_input(
-            "🔎 Buscar proveedor",
+            "Buscar proveedor",
             placeholder="Escribe el nombre del proveedor..."
         )
 
