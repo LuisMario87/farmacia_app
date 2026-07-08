@@ -473,10 +473,10 @@ with tab2:
                 "dias_credito"
             ].iloc[0]
         )
-    fecha_vencimiento = (
-    fecha_factura +
-    timedelta(days=dias_credito)
-    )
+        fecha_vencimiento = (
+        fecha_factura +
+        timedelta(days=dias_credito)
+        )
     cursor.execute("""
 
     SELECT COUNT(*)
@@ -499,7 +499,7 @@ with tab2:
             "Ya existe ese folio para este proveedor."
         )
 
-    st.stop()
+        st.stop()
 
 # ===============================
 # SIDEBAR INFO
