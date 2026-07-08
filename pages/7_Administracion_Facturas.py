@@ -38,6 +38,116 @@ with tab3:
 
     st.subheader("Gestión de Proveedores")
 
+    # ---------------------------------
+# NUEVO PROVEEDOR
+# ---------------------------------
+
+st.subheader("Registrar proveedor")
+
+with st.form("form_nuevo_proveedor", clear_on_submit=True):
+
+    nombre = st.text_input("Nombre del proveedor")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        contacto = st.text_input("Contacto")
+
+        telefono = st.text_input("Teléfono")
+
+    with col2:
+        correo = st.text_input("Correo")
+
+        dias_credito = st.number_input(
+            "Días de crédito",
+            min_value=0,
+            max_value=365,
+            value=30
+        )
+
+    observaciones = st.text_area(
+        "Observaciones",
+        height=80
+    )
+
+    guardar = st.form_submit_button("Guardar proveedor")
+
+if guardar:
+
+    if nombre.strip() == "":
+        st.error("El nombre del proveedor es obligatorio.")
+        st.stop()
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM proveedores
+        WHERE UPPER(nombre)=UPPER(%s)
+    """, (nombre.strip(),))
+
+    existe = cursor.fetchone()[0]
+
+    if existe > 0:
+
+        st.warning("Ya existe un proveedor con ese nombre.")
+
+    else:
+
+        try:
+
+            cursor.execute("""
+
+                INSERT INTO proveedores
+                (
+                    nombre,
+                    contacto,
+                    telefono,
+                    correo,
+                    dias_credito,
+                    estado,
+                    observaciones
+                )
+
+                VALUES
+                (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    'ACTIVO',
+                    %s
+                )
+
+            """,
+
+            (
+                nombre.strip(),
+                contacto.strip(),
+                telefono.strip(),
+                correo.strip(),
+                dias_credito,
+                observaciones.strip()
+            ))
+
+            conn.commit()
+
+            registrar_log(
+                st.session_state["usuario"],
+                "ALTA_PROVEEDOR",
+                f"Registró el proveedor {nombre}"
+            )
+
+            st.success("Proveedor registrado correctamente.")
+
+            st.rerun()
+
+        except Exception as e:
+
+            conn.rollback()
+
+            st.error(e)
+    st.divider()
+
     # ----------------------------
     # FILTROS
     # ----------------------------
