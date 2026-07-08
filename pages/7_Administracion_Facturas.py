@@ -500,6 +500,61 @@ with tab2:
         )
 
         st.stop()
+    try:
+
+        cursor.execute("""
+
+            INSERT INTO facturas
+            (
+                proveedor_id,
+                folio,
+                fecha_factura,
+                fecha_vencimiento,
+                monto,
+                estatus,
+                observaciones
+            )
+
+            VALUES
+            (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s
+            )
+
+        """,
+
+        (
+            proveedor_id,
+            folio.strip(),
+            fecha_factura,
+            fecha_vencimiento,
+            monto,
+            estatus,
+            observaciones.strip()
+        ))
+
+        conn.commit()
+        registrar_log(
+
+        st.session_state["usuario"],
+
+        "ALTA_FACTURA",
+
+        f"Registró la factura {folio} del proveedor {proveedor}"
+        )   
+    
+        st.success("Factura registrada correctamente.")
+        st.rerun()
+    except Exception as e:
+
+        conn.rollback()
+
+        st.error(e)
 
 # ===============================
 # SIDEBAR INFO
