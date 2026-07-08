@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+
+from html import escape
 from datetime import date, timedelta
 from utils.conexionASupabase import get_connection
 from utils.logger import registrar_log
@@ -269,68 +271,306 @@ with tab1:
 
         st.divider()
 
-        # ----------------------------
-        # TABLA DE FACTURAS
+               # ----------------------------
+        # TABLA VISUAL DE FACTURAS
         # ----------------------------
 
         st.markdown("### Facturas registradas")
 
-        df_mostrar = df_filtrado[[
-            "factura_id",
-            "proveedor",
-            "folio",
-            "fecha_factura",
-            "dias_credito",
-            "fecha_vencimiento",
-            "dias_restantes",
-            "monto",
-            "estatus",
-            "urgencia",
-            "observaciones"
-        ]].copy()
+        def formatear_fecha(valor):
 
-        df_mostrar = df_mostrar.rename(columns={
-            "factura_id": "ID",
-            "proveedor": "Proveedor",
-            "folio": "Folio",
-            "fecha_factura": "Fecha factura",
-            "dias_credito": "Días crédito",
-            "fecha_vencimiento": "Fecha vencimiento",
-            "dias_restantes": "Días restantes",
-            "monto": "Monto",
-            "estatus": "Estatus",
-            "urgencia": "Urgencia",
-            "observaciones": "Observaciones"
-        })
+            if pd.isna(valor):
+                return "-"
 
-        def colorear_filas(fila):
+            try:
+                return valor.strftime("%d/%m/%Y")
+            except Exception:
+                return str(valor)
 
-            if fila["Urgencia"] == "VENCIDA":
-                return ["background-color: #f4cccc"] * len(fila)
+        def formatear_monto(valor):
 
-            if fila["Urgencia"] == "URGENTE":
-                return ["background-color: #fff2cc"] * len(fila)
+            if pd.isna(valor):
+                return "$0.00"
 
-            if fila["Urgencia"] == "PRÓXIMA":
-                return ["background-color: #d9ead3"] * len(fila)
+            return f"${float(valor):,.2f}"
 
-            return [""] * len(fila)
+        def obtener_estatus_visual(fila):
 
-        st.dataframe(
-            df_mostrar.style.apply(
-                colorear_filas,
-                axis=1
-            ),
-            use_container_width=True,
-            hide_index=True
-        )
+            estatus = fila["estatus"]
+            dias = fila["dias_restantes"]
 
-        st.caption(
-            f"Facturas mostradas: {len(df_filtrado)}"
-        )
+            if estatus == "CANCELADA":
+                return {
+                    "texto": "CANCELADA",
+                    "detalle": "Factura cancelada",
+                    "clase_badge": "badge-cancelada",
+                    "clase_fila": "fila-cancelada"
+                }
+
+            if estatus == "PAGADA":
+                return {
+                    "texto": "PAGADA",
+                    "detalle": "Factura liquidada",
+                    "clase_badge": "badge-pagada",
+                    "clase_fila": "fila-pagada"
+                }
+
+            if dias < 0:
+                return {
+                    "texto": "VENCIDA",
+                    "detalle": f"Hace {abs(int(dias))} días",
+                    "clase_badge": "badge-rojo",
+                    "clase_fila": "fila-roja"
+                }
+
+            if dias == 0:
+                return {
+                    "texto": "VENCE HOY",
+                    "detalle": "Pagar hoy",
+                    "clase_badge": "badge-naranja",
+                    "clase_fila": "fila-naranja"
+                }
+
+            if dias <= 7:
+                return {
+                    "texto": "POR VENCER",
+                    "detalle": f"Faltan {int(dias)} días",
+                    "clase_badge": "badge-naranja",
+                    "clase_fila": "fila-naranja"
+                }
+
+            return {
+                "texto": "EN TIEMPO",
+                "detalle": f"Faltan {int(dias)} días",
+                "clase_badge": "badge-verde",
+                "clase_fila": "fila-verde"
+            }
+
+        estilos_tabla = """
+        <style>
+            .tabla-facturas-contenedor {
+                width: 100%;
+                overflow-x: auto;
+                border-radius: 14px;
+                border: 1px solid #e5e7eb;
+                background: white;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+            }
+
+            .tabla-facturas {
+                width: 100%;
+                border-collapse: separate;
+                border-spacing: 0;
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+            }
+
+            .tabla-facturas thead th {
+                background: #f8fafc;
+                color: #334155;
+                text-align: left;
+                padding: 14px 16px;
+                font-weight: 700;
+                border-bottom: 1px solid #e5e7eb;
+                white-space: nowrap;
+            }
+
+            .tabla-facturas tbody td {
+                padding: 14px 16px;
+                border-bottom: 1px solid #f1f5f9;
+                color: #1f2937;
+                vertical-align: middle;
+            }
+
+            .tabla-facturas tbody tr:hover {
+                background: #f8fafc;
+            }
+
+            .proveedor-texto {
+                font-weight: 700;
+                color: #111827;
+            }
+
+            .folio-texto {
+                font-weight: 600;
+                color: #334155;
+            }
+
+            .fecha-texto {
+                color: #475569;
+                white-space: nowrap;
+            }
+
+            .monto-texto {
+                font-weight: 700;
+                color: #111827;
+                text-align: right;
+                white-space: nowrap;
+            }
+
+            .observaciones-texto {
+                color: #64748b;
+                max-width: 260px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 105px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                font-size: 12px;
+                font-weight: 800;
+                letter-spacing: 0.3px;
+                text-align: center;
+                white-space: nowrap;
+            }
+
+            .badge-verde {
+                background: #dcfce7;
+                color: #166534;
+                border: 1px solid #86efac;
+            }
+
+            .badge-naranja {
+                background: #ffedd5;
+                color: #9a3412;
+                border: 1px solid #fdba74;
+            }
+
+            .badge-rojo {
+                background: #fee2e2;
+                color: #991b1b;
+                border: 1px solid #fca5a5;
+            }
+
+            .badge-cancelada {
+                background: #ffffff;
+                color: #64748b;
+                border: 1px solid #cbd5e1;
+            }
+
+            .badge-pagada {
+                background: #e0f2fe;
+                color: #075985;
+                border: 1px solid #7dd3fc;
+            }
+
+            .estatus-detalle {
+                display: block;
+                margin-top: 4px;
+                font-size: 12px;
+                color: #64748b;
+            }
+
+            .fila-verde td:first-child {
+                border-left: 5px solid #22c55e;
+            }
+
+            .fila-naranja td:first-child {
+                border-left: 5px solid #f97316;
+            }
+
+            .fila-roja td:first-child {
+                border-left: 5px solid #ef4444;
+            }
+
+            .fila-cancelada td:first-child {
+                border-left: 5px solid #e5e7eb;
+            }
+
+            .fila-pagada td:first-child {
+                border-left: 5px solid #38bdf8;
+            }
+        </style>
+        """
+
+        filas_html = ""
+
+        for _, fila in df_filtrado.iterrows():
+
+            visual = obtener_estatus_visual(fila)
+
+            proveedor_html = escape(str(fila["proveedor"] or "-"))
+            folio_html = escape(str(fila["folio"] or "-"))
+            observaciones_html = escape(str(fila["observaciones"] or "-"))
+
+            filas_html += f"""
+                <tr class="{visual["clase_fila"]}">
+                    <td>
+                        <span class="proveedor-texto">{proveedor_html}</span>
+                    </td>
+                    <td>
+                        <span class="folio-texto">{folio_html}</span>
+                    </td>
+                    <td>
+                        <span class="fecha-texto">{formatear_fecha(fila["fecha_factura"])}</span>
+                    </td>
+                    <td>
+                        <span class="fecha-texto">{formatear_fecha(fila["fecha_vencimiento"])}</span>
+                    </td>
+                    <td>
+                        <span class="badge {visual["clase_badge"]}">
+                            {visual["texto"]}
+                        </span>
+                        <span class="estatus-detalle">
+                            {visual["detalle"]}
+                        </span>
+                    </td>
+                    <td class="monto-texto">
+                        {formatear_monto(fila["monto"])}
+                    </td>
+                    <td>
+                        <span class="observaciones-texto" title="{observaciones_html}">
+                            {observaciones_html}
+                        </span>
+                    </td>
+                </tr>
+            """
+
+        if df_filtrado.empty:
+
+            st.info("No hay facturas que coincidan con los filtros seleccionados.")
+
+        else:
+
+            tabla_html = f"""
+            {estilos_tabla}
+
+            <div class="tabla-facturas-contenedor">
+                <table class="tabla-facturas">
+                    <thead>
+                        <tr>
+                            <th>Proveedor</th>
+                            <th>Folio</th>
+                            <th>Fecha factura</th>
+                            <th>Vencimiento</th>
+                            <th>Estatus</th>
+                            <th>Monto</th>
+                            <th>Observaciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filas_html}
+                    </tbody>
+                </table>
+            </div>
+            """
+
+            st.markdown(
+                tabla_html,
+                unsafe_allow_html=True
+            )
+
+            st.caption(
+                f"Facturas mostradas: {len(df_filtrado)}"
+            )
 
         st.divider()
-
         # ----------------------------
         # ACCIONES SOBRE FACTURAS
         # ----------------------------
