@@ -32,19 +32,412 @@ if "usuario" not in st.session_state:
 
 
 
-tab1,tab2,tab3,tab4 = st.tabs([
-
-"📋 Facturas",
-
-"➕ Agregar Factura",
-
-"🏭 Proveedores",
-
-
-"📊 Estadísticas"
-
+tab1, tab2, tab3, tab4 = st.tabs([
+    "Facturas",
+    "Agregar Factura",
+    "Proveedores",
+    "Estadísticas"
 ])
 
+# ----------------------------
+# GESTIÓN DE FACTURAS
+# ----------------------------
+
+with tab1:
+
+    st.subheader("Panel de facturas")
+
+    df_facturas = pd.read_sql("""
+        SELECT
+            f.factura_id,
+            p.nombre AS proveedor,
+            f.folio,
+            f.fecha_factura,
+            f.dias_credito,
+            f.fecha_vencimiento,
+            f.monto,
+            f.estatus,
+            f.observaciones
+        FROM facturas f
+        LEFT JOIN proveedores p
+            ON f.proveedor_id = p.proveedor_id
+        ORDER BY
+            f.fecha_vencimiento ASC,
+            f.created_at DESC
+    """, conn)
+
+    if df_facturas.empty:
+
+        st.info("Todavía no hay facturas registradas.")
+
+    else:
+
+        # ----------------------------
+        # LIMPIEZA DE FECHAS
+        # ----------------------------
+
+        df_facturas["fecha_factura"] = pd.to_datetime(
+            df_facturas["fecha_factura"]
+        ).dt.date
+
+        df_facturas["fecha_vencimiento"] = pd.to_datetime(
+            df_facturas["fecha_vencimiento"]
+        ).dt.date
+
+        hoy = date.today()
+
+        df_facturas["dias_restantes"] = df_facturas["fecha_vencimiento"].apply(
+            lambda fecha: (fecha - hoy).days if pd.notnull(fecha) else None
+        )
+
+        # ----------------------------
+        # CLASIFICACIÓN DE URGENCIA
+        # ----------------------------
+
+        def clasificar_urgencia(fila):
+
+            if fila["estatus"] == "PAGADA":
+                return "PAGADA"
+
+            if fila["estatus"] == "CANCELADA":
+                return "CANCELADA"
+
+            dias = fila["dias_restantes"]
+
+            if dias < 0:
+                return "VENCIDA"
+
+            if dias <= 3:
+                return "URGENTE"
+
+            if dias <= 7:
+                return "PRÓXIMA"
+
+            return "EN TIEMPO"
+
+        df_facturas["urgencia"] = df_facturas.apply(
+            clasificar_urgencia,
+            axis=1
+        )
+
+        # ----------------------------
+        # FILTROS
+        # ----------------------------
+
+        st.markdown("### Filtros")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+
+            proveedores = ["Todos"] + sorted(
+                df_facturas["proveedor"].dropna().unique().tolist()
+            )
+
+            filtro_proveedor = st.selectbox(
+                "Proveedor",
+                proveedores
+            )
+
+        with col2:
+
+            filtro_estatus = st.selectbox(
+                "Estatus",
+                [
+                    "Todos",
+                    "PENDIENTE",
+                    "PAGADA",
+                    "CANCELADA"
+                ]
+            )
+
+        with col3:
+
+            filtro_vencimiento = st.selectbox(
+                "Vencimiento",
+                [
+                    "Todos",
+                    "Vencidas",
+                    "Vencen en 7 días",
+                    "En tiempo"
+                ]
+            )
+
+        with col4:
+
+            buscar_folio = st.text_input(
+                "Buscar folio",
+                placeholder="Ej. F12345"
+            )
+
+        df_filtrado = df_facturas.copy()
+
+        if filtro_proveedor != "Todos":
+
+            df_filtrado = df_filtrado[
+                df_filtrado["proveedor"] == filtro_proveedor
+            ]
+
+        if filtro_estatus != "Todos":
+
+            df_filtrado = df_filtrado[
+                df_filtrado["estatus"] == filtro_estatus
+            ]
+
+        if filtro_vencimiento == "Vencidas":
+
+            df_filtrado = df_filtrado[
+                (df_filtrado["estatus"] == "PENDIENTE") &
+                (df_filtrado["dias_restantes"] < 0)
+            ]
+
+        elif filtro_vencimiento == "Vencen en 7 días":
+
+            df_filtrado = df_filtrado[
+                (df_filtrado["estatus"] == "PENDIENTE") &
+                (df_filtrado["dias_restantes"] >= 0) &
+                (df_filtrado["dias_restantes"] <= 7)
+            ]
+
+        elif filtro_vencimiento == "En tiempo":
+
+            df_filtrado = df_filtrado[
+                (df_filtrado["estatus"] == "PENDIENTE") &
+                (df_filtrado["dias_restantes"] > 7)
+            ]
+
+        if buscar_folio.strip():
+
+            df_filtrado = df_filtrado[
+                df_filtrado["folio"]
+                .astype(str)
+                .str.contains(buscar_folio.strip(), case=False, na=False)
+            ]
+
+        # ----------------------------
+        # KPIS
+        # ----------------------------
+
+        pendientes = df_filtrado[
+            df_filtrado["estatus"] == "PENDIENTE"
+        ]
+
+        vencidas = df_filtrado[
+            (df_filtrado["estatus"] == "PENDIENTE") &
+            (df_filtrado["dias_restantes"] < 0)
+        ]
+
+        proximas = df_filtrado[
+            (df_filtrado["estatus"] == "PENDIENTE") &
+            (df_filtrado["dias_restantes"] >= 0) &
+            (df_filtrado["dias_restantes"] <= 7)
+        ]
+
+        pagadas = df_filtrado[
+            df_filtrado["estatus"] == "PAGADA"
+        ]
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+
+            st.metric(
+                "Pendiente por pagar",
+                f"${pendientes['monto'].sum():,.2f}"
+            )
+
+        with col2:
+
+            st.metric(
+                "Facturas pendientes",
+                len(pendientes)
+            )
+
+        with col3:
+
+            st.metric(
+                "Facturas vencidas",
+                len(vencidas)
+            )
+
+        with col4:
+
+            st.metric(
+                "Vencen en 7 días",
+                len(proximas)
+            )
+
+        st.divider()
+
+        # ----------------------------
+        # TABLA DE FACTURAS
+        # ----------------------------
+
+        st.markdown("### Facturas registradas")
+
+        df_mostrar = df_filtrado[[
+            "factura_id",
+            "proveedor",
+            "folio",
+            "fecha_factura",
+            "dias_credito",
+            "fecha_vencimiento",
+            "dias_restantes",
+            "monto",
+            "estatus",
+            "urgencia",
+            "observaciones"
+        ]].copy()
+
+        df_mostrar = df_mostrar.rename(columns={
+            "factura_id": "ID",
+            "proveedor": "Proveedor",
+            "folio": "Folio",
+            "fecha_factura": "Fecha factura",
+            "dias_credito": "Días crédito",
+            "fecha_vencimiento": "Fecha vencimiento",
+            "dias_restantes": "Días restantes",
+            "monto": "Monto",
+            "estatus": "Estatus",
+            "urgencia": "Urgencia",
+            "observaciones": "Observaciones"
+        })
+
+        def colorear_filas(fila):
+
+            if fila["Urgencia"] == "VENCIDA":
+                return ["background-color: #f4cccc"] * len(fila)
+
+            if fila["Urgencia"] == "URGENTE":
+                return ["background-color: #fff2cc"] * len(fila)
+
+            if fila["Urgencia"] == "PRÓXIMA":
+                return ["background-color: #d9ead3"] * len(fila)
+
+            return [""] * len(fila)
+
+        st.dataframe(
+            df_mostrar.style.apply(
+                colorear_filas,
+                axis=1
+            ),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.caption(
+            f"Facturas mostradas: {len(df_filtrado)}"
+        )
+
+        st.divider()
+
+        # ----------------------------
+        # ACCIONES SOBRE FACTURAS
+        # ----------------------------
+
+        st.markdown("### Actualizar estatus de factura")
+
+        df_acciones = df_facturas[
+            df_facturas["estatus"] == "PENDIENTE"
+        ].copy()
+
+        if df_acciones.empty:
+
+            st.info("No hay facturas pendientes para actualizar.")
+
+        else:
+
+            opciones_facturas = {}
+
+            for _, fila in df_acciones.iterrows():
+
+                etiqueta = (
+                    f"{fila['proveedor']} | "
+                    f"Folio: {fila['folio']} | "
+                    f"Vence: {fila['fecha_vencimiento']} | "
+                    f"${float(fila['monto']):,.2f}"
+                )
+
+                opciones_facturas[etiqueta] = int(fila["factura_id"])
+
+            factura_sel = st.selectbox(
+                "Selecciona una factura pendiente",
+                list(opciones_facturas.keys())
+            )
+
+            factura_id_sel = opciones_facturas[factura_sel]
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                if st.button(
+                    "Marcar como pagada",
+                    use_container_width=True
+                ):
+
+                    try:
+
+                        cursor.execute("""
+                            UPDATE facturas
+                            SET estatus = 'PAGADA'
+                            WHERE factura_id = %s
+                        """, (
+                            factura_id_sel,
+                        ))
+
+                        conn.commit()
+
+                        registrar_log(
+                            st.session_state["usuario"],
+                            "FACTURA_PAGADA",
+                            f"Marcó como pagada la factura ID {factura_id_sel}"
+                        )
+
+                        st.success("Factura marcada como pagada correctamente.")
+
+                        st.rerun()
+
+                    except Exception as e:
+
+                        conn.rollback()
+
+                        st.error(e)
+
+            with col2:
+
+                if st.button(
+                    "Cancelar factura",
+                    use_container_width=True
+                ):
+
+                    try:
+
+                        cursor.execute("""
+                            UPDATE facturas
+                            SET estatus = 'CANCELADA'
+                            WHERE factura_id = %s
+                        """, (
+                            factura_id_sel,
+                        ))
+
+                        conn.commit()
+
+                        registrar_log(
+                            st.session_state["usuario"],
+                            "FACTURA_CANCELADA",
+                            f"Canceló la factura ID {factura_id_sel}"
+                        )
+
+                        st.success("Factura cancelada correctamente.")
+
+                        st.rerun()
+
+                    except Exception as e:
+
+                        conn.rollback()
+
+                        st.error(e)
 
 #----------------------------
 #GESTION DE PROVEEDORES
