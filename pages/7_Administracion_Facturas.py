@@ -156,7 +156,7 @@ if guardar:
             conn.rollback()
 
             st.error(e)
-    #st.divider()
+    st.divider()
 
     # ----------------------------
     # FILTROS
@@ -229,7 +229,7 @@ if guardar:
         st.caption(
             f"Total proveedores: {len(df_proveedores)}"
         )
-    #st.divider()
+    st.divider()
 
 # ===============================
 # SIDEBAR INFO
