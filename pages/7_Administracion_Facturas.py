@@ -4,6 +4,16 @@ import pandas as pd
 from utils.conexionASupabase import get_connection
 from utils.logger import registrar_log
 
+# ===============================
+# SEGURIDAD
+# ===============================
+if "usuario" not in st.session_state:
+    st.switch_page("streamlit_app.py")
+
+if st.session_state["usuario"]["rol"] != "admin":
+    st.error("No tienes permisos para esta sección")
+    st.stop()
+
 st.set_page_config(
     page_title="Administración Facturas",
     layout="wide"
@@ -146,7 +156,7 @@ if guardar:
             conn.rollback()
 
             st.error(e)
-    st.divider()
+    #st.divider()
 
     # ----------------------------
     # FILTROS
@@ -219,4 +229,16 @@ if guardar:
         st.caption(
             f"Total proveedores: {len(df_proveedores)}"
         )
-    st.divider()
+    #st.divider()
+
+# ===============================
+# SIDEBAR INFO
+# ===============================
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+if st.sidebar.button("🚪 Cerrar sesión"):
+    st.session_state.clear()
+    st.switch_page("streamlit_app.py")
