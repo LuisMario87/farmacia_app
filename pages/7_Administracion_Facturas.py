@@ -239,77 +239,58 @@ with tab1:
         )
 
         # ----------------------------
-        # FILTROS
+        # APLICAR FILTROS DE BÚSQUEDA
         # ----------------------------
-
-        st.markdown("### Filtros")
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-
-            proveedores = ["Todos"] + sorted(
-                df_facturas["proveedor"].dropna().unique().tolist()
-            )
-
-            filtro_proveedor = st.selectbox(
-                "Proveedor",
-                proveedores
-            )
-
-        with col2:
-
-            filtro_estatus = st.selectbox(
-                "Estatus",
-                [
-                    "Todos",
-                    "PENDIENTE",
-                    "PAGADA",
-                    "CANCELADA"
-                ]
-            )
-
-        with col3:
-
-            filtro_vencimiento = st.selectbox(
-                "Vencimiento",
-                [
-                    "Todos",
-                    "Vencidas",
-                    "Vencen en 7 días",
-                    "En tiempo"
-                ]
-            )
-
-        with col4:
-
-            buscar_folio = st.text_input(
-                "Buscar folio",
-                placeholder="Ej. F12345"
-            )
 
         df_filtrado = df_facturas.copy()
 
-        if filtro_proveedor != "Todos":
+        if filtro_proveedor_sql != "Todos":
 
             df_filtrado = df_filtrado[
-                df_filtrado["proveedor"] == filtro_proveedor
+                df_filtrado["proveedor"] == filtro_proveedor_sql
             ]
 
-        if filtro_estatus != "Todos":
+        if filtro_estatus_sql != "Todos":
 
             df_filtrado = df_filtrado[
-                df_filtrado["estatus"] == filtro_estatus
+                df_filtrado["estatus"] == filtro_estatus_sql
             ]
 
-        if filtro_vencimiento == "Vencidas":
+        if filtro_anio_sql != "Todos":
+
+            df_filtrado = df_filtrado[
+                pd.to_datetime(df_filtrado["fecha_factura"]).dt.year == int(filtro_anio_sql)
+            ]
+
+        meses_map = {
+            "Enero": 1,
+            "Febrero": 2,
+            "Marzo": 3,
+            "Abril": 4,
+            "Mayo": 5,
+            "Junio": 6,
+            "Julio": 7,
+            "Agosto": 8,
+            "Septiembre": 9,
+            "Octubre": 10,
+            "Noviembre": 11,
+            "Diciembre": 12
+        }
+
+        if filtro_mes_sql != "Todos":
+
+            df_filtrado = df_filtrado[
+                pd.to_datetime(df_filtrado["fecha_factura"]).dt.month == meses_map[filtro_mes_sql]
+            ]
+
+        if filtro_vencimiento_sql == "Vencidas":
 
             df_filtrado = df_filtrado[
                 (df_filtrado["estatus"] == "PENDIENTE") &
                 (df_filtrado["dias_restantes"] < 0)
             ]
 
-        elif filtro_vencimiento == "Vencen en 7 días":
+        elif filtro_vencimiento_sql == "Vencen en 7 días":
 
             df_filtrado = df_filtrado[
                 (df_filtrado["estatus"] == "PENDIENTE") &
@@ -317,19 +298,19 @@ with tab1:
                 (df_filtrado["dias_restantes"] <= 7)
             ]
 
-        elif filtro_vencimiento == "En tiempo":
+        elif filtro_vencimiento_sql == "En tiempo":
 
             df_filtrado = df_filtrado[
                 (df_filtrado["estatus"] == "PENDIENTE") &
                 (df_filtrado["dias_restantes"] > 7)
             ]
 
-        if buscar_folio.strip():
+        if buscar_folio_sql.strip():
 
             df_filtrado = df_filtrado[
                 df_filtrado["folio"]
                 .astype(str)
-                .str.contains(buscar_folio.strip(), case=False, na=False)
+                .str.contains(buscar_folio_sql.strip(), case=False, na=False)
             ]
 
         # ----------------------------
