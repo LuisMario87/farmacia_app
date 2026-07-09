@@ -794,7 +794,7 @@ with tab1:
         # ACCIONES SOBRE FACTURAS
         # ----------------------------
 
-        with st.expander("Administración de factura", expanded=False):
+        with st.expander("Acciones sobre facturas", expanded=False):
 
             opciones_facturas = {}
 
@@ -956,6 +956,10 @@ with tab1:
 
             st.markdown("#### Editar datos de la factura")
 
+            # Este sufijo hace que cada factura tenga sus propios campos
+            # y evita que Streamlit conserve valores de otra factura.
+            key_factura = f"factura_{factura_id_sel}"
+
             dias_credito_actual = (
                 0 if pd.isna(factura_data["dias_credito"])
                 else int(factura_data["dias_credito"])
@@ -980,7 +984,12 @@ with tab1:
                 else factura_data["fecha_vencimiento"]
             )
 
-            with st.form("form_editar_factura"):
+            observaciones_actuales = (
+                "" if pd.isna(factura_data["observaciones"])
+                else str(factura_data["observaciones"])
+            )
+
+            with st.form(f"form_editar_factura_{key_factura}"):
 
                 col1, col2 = st.columns(2)
 
@@ -989,13 +998,13 @@ with tab1:
                     folio_edit = st.text_input(
                         "Folio",
                         value=str(factura_data["folio"]),
-                        key="folio_edit_factura"
+                        key=f"folio_edit_{key_factura}"
                     )
 
                     fecha_factura_edit = st.date_input(
                         "Fecha de factura",
                         value=fecha_factura_actual,
-                        key="fecha_factura_edit"
+                        key=f"fecha_factura_edit_{key_factura}"
                     )
 
                     dias_credito_edit = st.number_input(
@@ -1003,7 +1012,7 @@ with tab1:
                         min_value=0,
                         max_value=365,
                         value=dias_credito_actual,
-                        key="dias_credito_edit"
+                        key=f"dias_credito_edit_{key_factura}"
                     )
 
                 with col2:
@@ -1011,7 +1020,7 @@ with tab1:
                     fecha_vencimiento_edit = st.date_input(
                         "Fecha de vencimiento",
                         value=fecha_vencimiento_actual,
-                        key="fecha_vencimiento_edit"
+                        key=f"fecha_vencimiento_edit_{key_factura}"
                     )
 
                     monto_edit = st.number_input(
@@ -1020,31 +1029,26 @@ with tab1:
                         step=100.0,
                         format="%.2f",
                         value=float(factura_data["monto"]),
-                        key="monto_edit_factura"
+                        key=f"monto_edit_{key_factura}"
                     )
 
                     estatus_edit = st.selectbox(
                         "Estatus",
                         estatus_opciones,
                         index=index_estatus,
-                        key="estatus_edit_factura"
+                        key=f"estatus_edit_{key_factura}"
                     )
 
                 recalcular_vencimiento = st.checkbox(
                     "Recalcular vencimiento automáticamente usando fecha de factura + días de crédito",
                     value=False,
-                    key="recalcular_vencimiento_edit"
-                )
-
-                observaciones_actuales = (
-                    "" if pd.isna(factura_data["observaciones"])
-                    else str(factura_data["observaciones"])
+                    key=f"recalcular_vencimiento_edit_{key_factura}"
                 )
 
                 observaciones_edit = st.text_area(
                     "Observaciones",
                     value=observaciones_actuales,
-                    key="observaciones_edit_factura"
+                    key=f"observaciones_edit_{key_factura}"
                 )
 
                 guardar_cambios_factura = st.form_submit_button(
@@ -1122,7 +1126,7 @@ with tab1:
                         fecha_factura_edit,
                         int(dias_credito_edit),
                         fecha_vencimiento_final,
-                        monto_edit,
+                        float(monto_edit),
                         estatus_edit,
                         observaciones_edit.strip(),
                         factura_id_sel
@@ -1145,6 +1149,7 @@ with tab1:
                     conn.rollback()
 
                     st.error(e)
+
 
             st.divider()
 
