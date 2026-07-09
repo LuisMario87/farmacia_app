@@ -1093,352 +1093,861 @@ with tab1:
 
 
 
+# ----------------------------
+# GESTIÓN DE PROVEEDORES
+# ----------------------------
+
 with tab3:
 
-    st.subheader("Gestión de Proveedores")
+    st.subheader("Gestión de proveedores")
 
-  # ----------------------------
+    # ----------------------------
     # FILTROS
     # ----------------------------
 
-    col1, col2 = st.columns([3,1])
+    col1, col2 = st.columns([3, 1])
 
     with col1:
-        buscar = st.text_input(
+
+        buscar_proveedor = st.text_input(
             "Buscar proveedor",
-            placeholder="Escribe el nombre del proveedor..."
+            placeholder="Nombre, contacto, teléfono o correo...",
+            key="buscar_proveedor_tab3"
         )
 
     with col2:
+
         mostrar_inactivos = st.checkbox(
             "Mostrar inactivos",
-            value=False
+            value=False,
+            key="mostrar_inactivos_tab3"
         )
 
     # ----------------------------
-    # CONSULTA
+    # CONSULTA DE PROVEEDORES
     # ----------------------------
 
-    query = """
+    query_proveedores = """
         SELECT
-            proveedor_id,
-            nombre,
-            contacto,
-            telefono,
-            correo,
-            dias_credito,
-            estado,
-            observaciones
-        FROM proveedores
+            p.proveedor_id,
+            p.nombre,
+            p.contacto,
+            p.telefono,
+            p.correo,
+            p.dias_credito,
+            p.estado,
+            p.observaciones,
+            COALESCE(m.facturas_total, 0) AS facturas_total,
+            COALESCE(m.facturas_pendientes, 0) AS facturas_pendientes,
+            COALESCE(m.saldo_pendiente, 0) AS saldo_pendiente,
+            m.ultima_factura
+        FROM proveedores p
+        LEFT JOIN (
+            SELECT
+                proveedor_id,
+                COUNT(*) AS facturas_total,
+                COUNT(*) FILTER (WHERE estatus = 'PENDIENTE') AS facturas_pendientes,
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN estatus = 'PENDIENTE' THEN monto
+                            ELSE 0
+                        END
+                    ),
+                    0
+                ) AS saldo_pendiente,
+                MAX(fecha_factura) AS ultima_factura
+            FROM facturas
+            GROUP BY proveedor_id
+        ) m
+            ON p.proveedor_id = m.proveedor_id
     """
 
     condiciones = []
+    parametros = []
 
     if not mostrar_inactivos:
-        condiciones.append("estado='ACTIVO'")
 
-    if buscar.strip():
-        condiciones.append(
-            f"UPPER(nombre) LIKE UPPER('%{buscar}%')"
-        )
+        condiciones.append("p.estado = %s")
+        parametros.append("ACTIVO")
+
+    if buscar_proveedor.strip():
+
+        condiciones.append("""
+            (
+                p.nombre ILIKE %s
+                OR p.contacto ILIKE %s
+                OR p.telefono ILIKE %s
+                OR p.correo ILIKE %s
+            )
+        """)
+
+        busqueda = f"%{buscar_proveedor.strip()}%"
+
+        parametros.extend([
+            busqueda,
+            busqueda,
+            busqueda,
+            busqueda
+        ])
 
     if condiciones:
-        query += " WHERE " + " AND ".join(condiciones)
 
-    query += " ORDER BY nombre"
+        query_proveedores += " WHERE " + " AND ".join(condiciones)
 
-    df_proveedores = pd.read_sql(query, conn)
+    query_proveedores += " ORDER BY p.nombre ASC"
+
+    df_proveedores = pd.read_sql(
+        query_proveedores,
+        conn,
+        params=parametros
+    )
 
     # ----------------------------
-    # TABLA
+    # KPIS DE PROVEEDORES
     # ----------------------------
-
-    if df_proveedores.empty:
-
-        st.info("No hay proveedores para mostrar.")
-
-    else:
-
-        st.dataframe(
-            df_proveedores,
-            use_container_width=True,
-            hide_index=True
-        )
-
-        st.caption(
-            f"Total proveedores: {len(df_proveedores)}"
-        )
-        st.divider()
-
-    st.subheader("Editar proveedor")
 
     if not df_proveedores.empty:
 
-        opciones = {
-            fila["nombre"]: fila["proveedor_id"]
-            for _, fila in df_proveedores.iterrows()
-        }
+        total_proveedores = len(df_proveedores)
 
-        proveedor_sel = st.selectbox(
-            "Proveedor",
-            list(opciones.keys())
+        proveedores_activos = len(
+            df_proveedores[
+                df_proveedores["estado"] == "ACTIVO"
+            ]
         )
 
-        proveedor_id = opciones[proveedor_sel]
-
-        cursor.execute("""
-            SELECT
-                nombre,
-                contacto,
-                telefono,
-                correo,
-                dias_credito,
-                estado,
-                observaciones
-            FROM proveedores
-            WHERE proveedor_id=%s
-        """,(proveedor_id,))
-
-        datos = cursor.fetchone()
-        nombre_edit = st.text_input(
-        "Nombre",
-        value=datos[0]
+        facturas_pendientes_total = int(
+            df_proveedores["facturas_pendientes"].sum()
         )
 
-    col1,col2 = st.columns(2)
-
-    with col1:
-
-        contacto_edit = st.text_input(
-            "Contacto",
-            value=datos[1] or ""
+        saldo_pendiente_total = float(
+            df_proveedores["saldo_pendiente"].sum()
         )
 
-        telefono_edit = st.text_input(
-            "Teléfono",
-            value=datos[2] or ""
-        )
+        col1, col2, col3, col4 = st.columns(4)
 
-    with col2:
+        with col1:
 
-        correo_edit = st.text_input(
-            "Correo",
-            value=datos[3] or ""
-        )
+            st.metric(
+                "Proveedores mostrados",
+                total_proveedores
+            )
 
-        dias_edit = st.number_input(
-            "Días de crédito",
-            min_value=0,
-            max_value=365,
-            value=datos[4]
-        )
+        with col2:
 
-    estado_edit = st.selectbox(
-        "Estado",
-        ["ACTIVO","CERRADA"],
-        index=0 if datos[5]=="ACTIVO" else 1
-    )
+            st.metric(
+                "Proveedores activos",
+                proveedores_activos
+            )
 
-    observaciones_edit = st.text_area(
-        "Observaciones",
-        value=datos[6] or ""
-    )
+        with col3:
 
-    col1,col2 = st.columns(2)
-    with col1:
+            st.metric(
+                "Facturas pendientes",
+                facturas_pendientes_total
+            )
 
-        if st.button("Guardar cambios"):
+        with col4:
 
-            try:
+            st.metric(
+                "Saldo pendiente",
+                f"${saldo_pendiente_total:,.2f}"
+            )
 
-                cursor.execute("""
+    else:
 
-                UPDATE proveedores
-
-                SET
-
-                    nombre=%s,
-
-                    contacto=%s,
-
-                    telefono=%s,
-
-                    correo=%s,
-
-                    dias_credito=%s,
-
-                    estado=%s,
-
-                    observaciones=%s
-
-                WHERE proveedor_id=%s
-
-                """,
-
-                (
-
-                    nombre_edit,
-
-                    contacto_edit,
-
-                    telefono_edit,
-
-                    correo_edit,
-
-                    dias_edit,
-
-                    estado_edit,
-
-                    observaciones_edit,
-
-                    proveedor_id
-
-                ))
-
-                conn.commit()
-
-                registrar_log(
-
-                    st.session_state["usuario"],
-
-                    "MODIFICACION_PROVEEDOR",
-
-                    f"Modificó proveedor {nombre_edit}"
-
-                )
-
-                st.success("Proveedor actualizado correctamente.")
-
-                st.rerun()
-
-            except Exception as e:
-
-                conn.rollback()
-
-                st.error(e)
-    with col2:
-
-        if estado_edit=="ACTIVO":
-
-            st.success("Proveedor activo")
-
-        else:
-
-            st.warning("Proveedor cerrado")
+        st.info("No hay proveedores para mostrar con los filtros seleccionados.")
 
     st.divider()
 
+    # ----------------------------
+    # TABLA VISUAL DE PROVEEDORES
+    # ----------------------------
 
-    # ---------------------------------
-# NUEVO PROVEEDOR
-# ---------------------------------
+    st.markdown("### Proveedores registrados")
 
-    st.subheader("Registrar proveedor")
+    def formato_monto_proveedor(valor):
 
-    with st.form("form_nuevo_proveedor", clear_on_submit=True):
+        if pd.isna(valor):
+            return "$0.00"
 
-        nombre = st.text_input("Nombre del proveedor")
+        return f"${float(valor):,.2f}"
 
-        col1, col2 = st.columns(2)
+    def formato_fecha_proveedor(valor):
 
-        with col1:
-            contacto = st.text_input("Contacto")
+        if pd.isna(valor) or valor is None:
+            return "-"
 
-            telefono = st.text_input("Teléfono")
+        try:
+            return pd.to_datetime(valor).strftime("%d/%m/%Y")
+        except Exception:
+            return str(valor)
 
-        with col2:
-            correo = st.text_input("Correo")
+    def limpiar_texto(valor):
 
-            dias_credito = st.number_input(
-                "Días de crédito",
-                min_value=0,
-                max_value=365,
-                value=30
+        if pd.isna(valor) or valor is None or str(valor).strip() == "":
+            return "-"
+
+        return str(valor)
+
+    if not df_proveedores.empty:
+
+        estilos_proveedores = """
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                font-family: Arial, sans-serif;
+            }
+
+            .tabla-proveedores-contenedor {
+                width: 100%;
+                overflow-x: auto;
+                border-radius: 16px;
+                border: 1px solid #e5e7eb;
+                background: #ffffff;
+                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+            }
+
+            .tabla-proveedores {
+                width: 100%;
+                border-collapse: separate;
+                border-spacing: 0;
+                font-size: 14px;
+            }
+
+            .tabla-proveedores thead th {
+                background: #f8fafc;
+                color: #334155;
+                text-align: left;
+                padding: 15px 16px;
+                font-weight: 700;
+                border-bottom: 1px solid #e5e7eb;
+                white-space: nowrap;
+            }
+
+            .tabla-proveedores tbody td {
+                padding: 15px 16px;
+                border-bottom: 1px solid #f1f5f9;
+                color: #1f2937;
+                vertical-align: middle;
+                background: #ffffff;
+            }
+
+            .tabla-proveedores tbody tr:last-child td {
+                border-bottom: none;
+            }
+
+            .tabla-proveedores tbody tr:hover td {
+                background: #f8fafc;
+            }
+
+            .proveedor-nombre {
+                font-weight: 800;
+                color: #111827;
+                display: block;
+            }
+
+            .proveedor-contacto {
+                color: #64748b;
+                font-size: 12px;
+                margin-top: 4px;
+                display: block;
+            }
+
+            .texto-normal {
+                color: #475569;
+                font-weight: 500;
+                white-space: nowrap;
+            }
+
+            .credito-badge {
+                display: inline-block;
+                background: #f1f5f9;
+                color: #334155;
+                border: 1px solid #cbd5e1;
+                border-radius: 999px;
+                padding: 6px 10px;
+                font-size: 12px;
+                font-weight: 800;
+                white-space: nowrap;
+            }
+
+            .badge-activo {
+                display: inline-block;
+                background: #dcfce7;
+                color: #166534;
+                border: 1px solid #86efac;
+                border-radius: 999px;
+                padding: 7px 12px;
+                font-size: 12px;
+                font-weight: 800;
+                letter-spacing: 0.3px;
+                white-space: nowrap;
+            }
+
+            .badge-inactivo {
+                display: inline-block;
+                background: #ffffff;
+                color: #64748b;
+                border: 1px solid #cbd5e1;
+                border-radius: 999px;
+                padding: 7px 12px;
+                font-size: 12px;
+                font-weight: 800;
+                letter-spacing: 0.3px;
+                white-space: nowrap;
+            }
+
+            .pendientes-badge {
+                display: inline-block;
+                background: #ffedd5;
+                color: #9a3412;
+                border: 1px solid #fdba74;
+                border-radius: 999px;
+                padding: 6px 10px;
+                font-size: 12px;
+                font-weight: 800;
+                white-space: nowrap;
+            }
+
+            .saldo-texto {
+                font-weight: 800;
+                color: #111827;
+                text-align: right;
+                white-space: nowrap;
+            }
+
+            .fila-activa td:first-child {
+                border-left: 6px solid #22c55e;
+            }
+
+            .fila-inactiva td:first-child {
+                border-left: 6px solid #e5e7eb;
+            }
+        </style>
+        """
+
+        filas_proveedores_html = ""
+
+        for _, fila in df_proveedores.iterrows():
+
+            estado = str(fila["estado"] or "INACTIVO").upper()
+
+            if estado == "ACTIVO":
+
+                clase_fila = "fila-activa"
+                badge_estado = '<span class="badge-activo">ACTIVO</span>'
+
+            else:
+
+                clase_fila = "fila-inactiva"
+                badge_estado = '<span class="badge-inactivo">INACTIVO</span>'
+
+            proveedor_html = escape(limpiar_texto(fila["nombre"]))
+            contacto_html = escape(limpiar_texto(fila["contacto"]))
+            telefono_html = escape(limpiar_texto(fila["telefono"]))
+            correo_html = escape(limpiar_texto(fila["correo"]))
+
+            dias_credito_html = int(
+                0 if pd.isna(fila["dias_credito"]) else fila["dias_credito"]
             )
 
-        observaciones = st.text_area(
-            "Observaciones",
-            height=80
+            facturas_pendientes_html = int(
+                0 if pd.isna(fila["facturas_pendientes"]) else fila["facturas_pendientes"]
+            )
+
+            filas_proveedores_html += f"""
+                <tr class="{clase_fila}">
+                    <td>
+                        <span class="proveedor-nombre">{proveedor_html}</span>
+                        <span class="proveedor-contacto">Contacto: {contacto_html}</span>
+                    </td>
+                    <td>
+                        <span class="texto-normal">{telefono_html}</span>
+                    </td>
+                    <td>
+                        <span class="texto-normal">{correo_html}</span>
+                    </td>
+                    <td>
+                        <span class="credito-badge">{dias_credito_html} días</span>
+                    </td>
+                    <td>
+                        {badge_estado}
+                    </td>
+                    <td>
+                        <span class="pendientes-badge">{facturas_pendientes_html}</span>
+                    </td>
+                    <td class="saldo-texto">
+                        {formato_monto_proveedor(fila["saldo_pendiente"])}
+                    </td>
+                    <td>
+                        <span class="texto-normal">{formato_fecha_proveedor(fila["ultima_factura"])}</span>
+                    </td>
+                </tr>
+            """
+
+        tabla_proveedores_html = f"""
+        {estilos_proveedores}
+
+        <div class="tabla-proveedores-contenedor">
+            <table class="tabla-proveedores">
+                <thead>
+                    <tr>
+                        <th>Proveedor</th>
+                        <th>Teléfono</th>
+                        <th>Correo</th>
+                        <th>Crédito</th>
+                        <th>Estado</th>
+                        <th>Pendientes</th>
+                        <th>Saldo pendiente</th>
+                        <th>Última factura</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filas_proveedores_html}
+                </tbody>
+            </table>
+        </div>
+        """
+
+        altura_proveedores = min(
+            750,
+            130 + (len(df_proveedores) * 78)
         )
 
-        guardar = st.form_submit_button("Guardar proveedor")
+        components.html(
+            tabla_proveedores_html,
+            height=altura_proveedores,
+            scrolling=True
+        )
 
-    if guardar:
+        st.caption(
+            f"Proveedores mostrados: {len(df_proveedores)}"
+        )
 
-        if nombre.strip() == "":
-            st.error("El nombre del proveedor es obligatorio.")
-            st.stop()
+    st.divider()
 
-        cursor.execute("""
-            SELECT COUNT(*)
-            FROM proveedores
-            WHERE UPPER(nombre)=UPPER(%s)
-        """, (nombre.strip(),))
+    # ----------------------------
+    # REGISTRAR PROVEEDOR
+    # ----------------------------
 
-        existe = cursor.fetchone()[0]
+    with st.expander("Registrar nuevo proveedor", expanded=False):
 
-        if existe > 0:
+        with st.form("form_nuevo_proveedor_tab3", clear_on_submit=True):
 
-            st.warning("Ya existe un proveedor con ese nombre.")
+            nombre = st.text_input(
+                "Nombre del proveedor",
+                key="nuevo_proveedor_nombre"
+            )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                contacto = st.text_input(
+                    "Contacto",
+                    key="nuevo_proveedor_contacto"
+                )
+
+                telefono = st.text_input(
+                    "Teléfono",
+                    key="nuevo_proveedor_telefono"
+                )
+
+            with col2:
+
+                correo = st.text_input(
+                    "Correo",
+                    key="nuevo_proveedor_correo"
+                )
+
+                dias_credito = st.number_input(
+                    "Días de crédito",
+                    min_value=0,
+                    max_value=365,
+                    value=30,
+                    key="nuevo_proveedor_dias"
+                )
+
+            observaciones = st.text_area(
+                "Observaciones",
+                height=90,
+                key="nuevo_proveedor_observaciones"
+            )
+
+            guardar_proveedor = st.form_submit_button(
+                "Guardar proveedor",
+                use_container_width=True
+            )
+
+        if guardar_proveedor:
+
+            nombre_limpio = nombre.strip()
+
+            if nombre_limpio == "":
+
+                st.error("El nombre del proveedor es obligatorio.")
+
+            else:
+
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM proveedores
+                    WHERE UPPER(nombre) = UPPER(%s)
+                """, (
+                    nombre_limpio,
+                ))
+
+                existe = cursor.fetchone()[0]
+
+                if existe > 0:
+
+                    st.warning("Ya existe un proveedor con ese nombre.")
+
+                else:
+
+                    try:
+
+                        cursor.execute("""
+                            INSERT INTO proveedores
+                            (
+                                nombre,
+                                contacto,
+                                telefono,
+                                correo,
+                                dias_credito,
+                                estado,
+                                observaciones
+                            )
+                            VALUES
+                            (
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                %s,
+                                'ACTIVO',
+                                %s
+                            )
+                        """, (
+                            nombre_limpio,
+                            contacto.strip(),
+                            telefono.strip(),
+                            correo.strip(),
+                            int(dias_credito),
+                            observaciones.strip()
+                        ))
+
+                        conn.commit()
+
+                        registrar_log(
+                            st.session_state["usuario"],
+                            "ALTA_PROVEEDOR",
+                            f"Registró el proveedor {nombre_limpio}"
+                        )
+
+                        st.success("Proveedor registrado correctamente.")
+
+                        st.rerun()
+
+                    except Exception as e:
+
+                        conn.rollback()
+
+                        st.error(e)
+
+    # ----------------------------
+    # EDITAR PROVEEDOR
+    # ----------------------------
+
+    with st.expander("Editar proveedor", expanded=False):
+
+        if df_proveedores.empty:
+
+            st.info("No hay proveedores disponibles para editar con los filtros actuales.")
 
         else:
 
-            try:
+            opciones_proveedores = {}
 
-                cursor.execute("""
+            for _, fila in df_proveedores.iterrows():
 
-                    INSERT INTO proveedores
-                    (
-                        nombre,
-                        contacto,
-                        telefono,
-                        correo,
-                        dias_credito,
-                        estado,
-                        observaciones
-                    )
-
-                    VALUES
-                    (
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        'ACTIVO',
-                        %s
-                    )
-
-                """,
-
-                (
-                    nombre.strip(),
-                    contacto.strip(),
-                    telefono.strip(),
-                    correo.strip(),
-                    dias_credito,
-                    observaciones.strip()
-                ))
-
-                conn.commit()
-
-                registrar_log(
-                    st.session_state["usuario"],
-                    "ALTA_PROVEEDOR",
-                    f"Registró el proveedor {nombre}"
+                etiqueta = (
+                    f"{fila['nombre']} | "
+                    f"{fila['estado']} | "
+                    f"Pendientes: {int(fila['facturas_pendientes'])} | "
+                    f"Saldo: ${float(fila['saldo_pendiente']):,.2f}"
                 )
 
-                st.success("Proveedor registrado correctamente.")
+                opciones_proveedores[etiqueta] = int(fila["proveedor_id"])
 
-                st.rerun()
+            proveedor_sel = st.selectbox(
+                "Selecciona un proveedor",
+                list(opciones_proveedores.keys()),
+                key="select_editar_proveedor_tab3"
+            )
 
-            except Exception as e:
+            proveedor_id = opciones_proveedores[proveedor_sel]
 
-                conn.rollback()
+            proveedor_data = df_proveedores[
+                df_proveedores["proveedor_id"] == proveedor_id
+            ].iloc[0]
 
-                st.error(e)
-        st.divider()
+            st.markdown("#### Resumen del proveedor")
 
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+
+                st.metric(
+                    "Facturas pendientes",
+                    int(proveedor_data["facturas_pendientes"])
+                )
+
+            with col2:
+
+                st.metric(
+                    "Saldo pendiente",
+                    f"${float(proveedor_data['saldo_pendiente']):,.2f}"
+                )
+
+            with col3:
+
+                st.metric(
+                    "Facturas totales",
+                    int(proveedor_data["facturas_total"])
+                )
+
+            estado_actual = str(
+                proveedor_data["estado"] or "INACTIVO"
+            ).upper()
+
+            if estado_actual not in ["ACTIVO", "INACTIVO"]:
+                estado_actual = "INACTIVO"
+
+            estado_opciones = ["ACTIVO", "INACTIVO"]
+
+            index_estado = estado_opciones.index(estado_actual)
+
+            observaciones_actuales = (
+                "" if pd.isna(proveedor_data["observaciones"])
+                else str(proveedor_data["observaciones"])
+            )
+
+            with st.form("form_editar_proveedor_tab3"):
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    nombre_edit = st.text_input(
+                        "Nombre",
+                        value=str(proveedor_data["nombre"]),
+                        key="editar_proveedor_nombre"
+                    )
+
+                    contacto_edit = st.text_input(
+                        "Contacto",
+                        value=limpiar_texto(proveedor_data["contacto"]).replace("-", ""),
+                        key="editar_proveedor_contacto"
+                    )
+
+                    telefono_edit = st.text_input(
+                        "Teléfono",
+                        value=limpiar_texto(proveedor_data["telefono"]).replace("-", ""),
+                        key="editar_proveedor_telefono"
+                    )
+
+                with col2:
+
+                    correo_edit = st.text_input(
+                        "Correo",
+                        value=limpiar_texto(proveedor_data["correo"]).replace("-", ""),
+                        key="editar_proveedor_correo"
+                    )
+
+                    dias_edit = st.number_input(
+                        "Días de crédito",
+                        min_value=0,
+                        max_value=365,
+                        value=int(
+                            0 if pd.isna(proveedor_data["dias_credito"])
+                            else proveedor_data["dias_credito"]
+                        ),
+                        key="editar_proveedor_dias"
+                    )
+
+                    estado_edit = st.selectbox(
+                        "Estado",
+                        estado_opciones,
+                        index=index_estado,
+                        key="editar_proveedor_estado"
+                    )
+
+                observaciones_edit = st.text_area(
+                    "Observaciones",
+                    value=observaciones_actuales,
+                    height=90,
+                    key="editar_proveedor_observaciones"
+                )
+
+                guardar_cambios_proveedor = st.form_submit_button(
+                    "Guardar cambios del proveedor",
+                    use_container_width=True
+                )
+
+            if guardar_cambios_proveedor:
+
+                nombre_edit_limpio = nombre_edit.strip()
+
+                if nombre_edit_limpio == "":
+
+                    st.error("El nombre del proveedor es obligatorio.")
+
+                else:
+
+                    cursor.execute("""
+                        SELECT COUNT(*)
+                        FROM proveedores
+                        WHERE UPPER(nombre) = UPPER(%s)
+                        AND proveedor_id <> %s
+                    """, (
+                        nombre_edit_limpio,
+                        proveedor_id
+                    ))
+
+                    existe_nombre = cursor.fetchone()[0]
+
+                    if existe_nombre > 0:
+
+                        st.warning("Ya existe otro proveedor con ese nombre.")
+
+                    else:
+
+                        try:
+
+                            cursor.execute("""
+                                UPDATE proveedores
+                                SET
+                                    nombre = %s,
+                                    contacto = %s,
+                                    telefono = %s,
+                                    correo = %s,
+                                    dias_credito = %s,
+                                    estado = %s,
+                                    observaciones = %s
+                                WHERE proveedor_id = %s
+                            """, (
+                                nombre_edit_limpio,
+                                contacto_edit.strip(),
+                                telefono_edit.strip(),
+                                correo_edit.strip(),
+                                int(dias_edit),
+                                estado_edit,
+                                observaciones_edit.strip(),
+                                proveedor_id
+                            ))
+
+                            conn.commit()
+
+                            registrar_log(
+                                st.session_state["usuario"],
+                                "MODIFICACION_PROVEEDOR",
+                                f"Modificó el proveedor {nombre_edit_limpio}"
+                            )
+
+                            st.success("Proveedor actualizado correctamente.")
+
+                            st.rerun()
+
+                        except Exception as e:
+
+                            conn.rollback()
+
+                            st.error(e)
+
+            st.divider()
+
+            st.markdown("#### Acciones rápidas")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                if st.button(
+                    "Desactivar proveedor",
+                    use_container_width=True,
+                    disabled=estado_actual == "INACTIVO",
+                    key="btn_desactivar_proveedor"
+                ):
+
+                    try:
+
+                        cursor.execute("""
+                            UPDATE proveedores
+                            SET estado = 'INACTIVO'
+                            WHERE proveedor_id = %s
+                        """, (
+                            proveedor_id,
+                        ))
+
+                        conn.commit()
+
+                        registrar_log(
+                            st.session_state["usuario"],
+                            "PROVEEDOR_DESACTIVADO",
+                            f"Desactivó el proveedor ID {proveedor_id}"
+                        )
+
+                        st.success("Proveedor desactivado correctamente.")
+
+                        st.rerun()
+
+                    except Exception as e:
+
+                        conn.rollback()
+
+                        st.error(e)
+
+            with col2:
+
+                if st.button(
+                    "Reactivar proveedor",
+                    use_container_width=True,
+                    disabled=estado_actual == "ACTIVO",
+                    key="btn_reactivar_proveedor"
+                ):
+
+                    try:
+
+                        cursor.execute("""
+                            UPDATE proveedores
+                            SET estado = 'ACTIVO'
+                            WHERE proveedor_id = %s
+                        """, (
+                            proveedor_id,
+                        ))
+
+                        conn.commit()
+
+                        registrar_log(
+                            st.session_state["usuario"],
+                            "PROVEEDOR_REACTIVADO",
+                            f"Reactivó el proveedor ID {proveedor_id}"
+                        )
+
+                        st.success("Proveedor reactivado correctamente.")
+
+                        st.rerun()
+
+                    except Exception as e:
+
+                        conn.rollback()
+
+                        st.error(e)
 with tab2:
 
     st.subheader("Registrar factura")
