@@ -238,7 +238,99 @@ with tab1:
             axis=1
         )
 
-        
+        # ----------------------------
+        # FILTROS
+        # ----------------------------
+
+        st.markdown("### Filtros")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+
+            proveedores = ["Todos"] + sorted(
+                df_facturas["proveedor"].dropna().unique().tolist()
+            )
+
+            filtro_proveedor = st.selectbox(
+                "Proveedor",
+                proveedores
+            )
+
+        with col2:
+
+            filtro_estatus = st.selectbox(
+                "Estatus",
+                [
+                    "Todos",
+                    "PENDIENTE",
+                    "PAGADA",
+                    "CANCELADA"
+                ]
+            )
+
+        with col3:
+
+            filtro_vencimiento = st.selectbox(
+                "Vencimiento",
+                [
+                    "Todos",
+                    "Vencidas",
+                    "Vencen en 7 días",
+                    "En tiempo"
+                ]
+            )
+
+        with col4:
+
+            buscar_folio = st.text_input(
+                "Buscar folio",
+                placeholder="Ej. F12345"
+            )
+
+        df_filtrado = df_facturas.copy()
+
+        if filtro_proveedor != "Todos":
+
+            df_filtrado = df_filtrado[
+                df_filtrado["proveedor"] == filtro_proveedor
+            ]
+
+        if filtro_estatus != "Todos":
+
+            df_filtrado = df_filtrado[
+                df_filtrado["estatus"] == filtro_estatus
+            ]
+
+        if filtro_vencimiento == "Vencidas":
+
+            df_filtrado = df_filtrado[
+                (df_filtrado["estatus"] == "PENDIENTE") &
+                (df_filtrado["dias_restantes"] < 0)
+            ]
+
+        elif filtro_vencimiento == "Vencen en 7 días":
+
+            df_filtrado = df_filtrado[
+                (df_filtrado["estatus"] == "PENDIENTE") &
+                (df_filtrado["dias_restantes"] >= 0) &
+                (df_filtrado["dias_restantes"] <= 7)
+            ]
+
+        elif filtro_vencimiento == "En tiempo":
+
+            df_filtrado = df_filtrado[
+                (df_filtrado["estatus"] == "PENDIENTE") &
+                (df_filtrado["dias_restantes"] > 7)
+            ]
+
+        if buscar_folio.strip():
+
+            df_filtrado = df_filtrado[
+                df_filtrado["folio"]
+                .astype(str)
+                .str.contains(buscar_folio.strip(), case=False, na=False)
+            ]
 
         # ----------------------------
         # KPIS
