@@ -52,7 +52,35 @@ with tab1:
 
     st.subheader("Panel de facturas")
 
-        # ----------------------------
+    # ----------------------------
+    # FUNCIONES AUXILIARES
+    # ----------------------------
+
+    def limpiar_texto_factura(valor):
+
+        if pd.isna(valor) or valor is None or str(valor).strip() == "":
+            return "-"
+
+        return str(valor)
+
+    def formatear_fecha(valor):
+
+        if pd.isna(valor) or valor is None:
+            return "-"
+
+        try:
+            return valor.strftime("%d/%m/%Y")
+        except Exception:
+            return str(valor)
+
+    def formatear_monto(valor):
+
+        if pd.isna(valor) or valor is None:
+            return "$0.00"
+
+        return f"${float(valor):,.2f}"
+
+    # ----------------------------
     # FILTROS DE CARGA
     # ----------------------------
 
@@ -76,8 +104,15 @@ with tab1:
         ORDER BY anio DESC
     """, conn)
 
-    proveedores_filtro = ["Todos"] + df_proveedores_filtro["proveedor"].dropna().tolist()
-    anios_filtro = ["Todos"] + df_anios_filtro["anio"].dropna().astype(int).tolist()
+    proveedores_filtro = (
+        ["Todos"] +
+        df_proveedores_filtro["proveedor"].dropna().tolist()
+    )
+
+    anios_filtro = (
+        ["Todos"] +
+        df_anios_filtro["anio"].dropna().astype(int).tolist()
+    )
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -164,9 +199,8 @@ with tab1:
             key="registros_por_pagina_tab1"
         )
 
-    ######################################################
-        # ----------------------------
-    # CONSULTA OPTIMIZADA DE FACTURAS
+    # ----------------------------
+    # CONSTRUIR WHERE SQL
     # ----------------------------
 
     meses_map = {
@@ -263,6 +297,12 @@ with tab1:
         (total_registros + int(registros_por_pagina) - 1) // int(registros_por_pagina)
     )
 
+    if "pagina_facturas_tab1" not in st.session_state:
+        st.session_state["pagina_facturas_tab1"] = 1
+
+    if st.session_state["pagina_facturas_tab1"] > total_paginas:
+        st.session_state["pagina_facturas_tab1"] = 1
+
     col1, col2, col3 = st.columns([1, 1, 2])
 
     with col1:
@@ -271,7 +311,7 @@ with tab1:
             "Página",
             min_value=1,
             max_value=total_paginas,
-            value=1,
+            value=st.session_state["pagina_facturas_tab1"],
             step=1,
             key="pagina_facturas_tab1"
         )
@@ -293,7 +333,41 @@ with tab1:
     offset = (int(pagina_actual) - 1) * int(registros_por_pagina)
 
     # ----------------------------
-    # CONSULTA PAGINADA
+    # KPIS GENERALES DE LA BÚSQUEDA
+    # ----------------------------
+
+    query_kpis = f"""
+        SELECT
+            COALESCE(SUM(CASE WHEN f.estatus = 'PENDIENTE' THEN f.monto ELSE 0 END), 0) AS saldo_pendiente,
+            COUNT(*) FILTER (WHERE f.estatus = 'PENDIENTE') AS facturas_pendientes,
+            COUNT(*) FILTER (
+                WHERE f.estatus = 'PENDIENTE'
+                AND f.fecha_vencimiento < CURRENT_DATE
+            ) AS facturas_vencidas,
+            COUNT(*) FILTER (
+                WHERE f.estatus = 'PENDIENTE'
+                AND f.fecha_vencimiento >= CURRENT_DATE
+                AND f.fecha_vencimiento <= CURRENT_DATE + INTERVAL '7 days'
+            ) AS facturas_proximas
+        FROM facturas f
+        LEFT JOIN proveedores p
+            ON f.proveedor_id = p.proveedor_id
+        {where_sql}
+    """
+
+    df_kpis = pd.read_sql(
+        query_kpis,
+        conn,
+        params=parametros_sql
+    )
+
+    saldo_pendiente = float(df_kpis["saldo_pendiente"].iloc[0])
+    facturas_pendientes = int(df_kpis["facturas_pendientes"].iloc[0])
+    facturas_vencidas = int(df_kpis["facturas_vencidas"].iloc[0])
+    facturas_proximas = int(df_kpis["facturas_proximas"].iloc[0])
+
+    # ----------------------------
+    # CONSULTA PAGINADA DE FACTURAS
     # ----------------------------
 
     query_facturas = f"""
@@ -326,6 +400,7 @@ with tab1:
     """
 
     parametros_facturas = parametros_sql.copy()
+
     parametros_facturas.extend([
         int(registros_por_pagina),
         int(offset)
@@ -337,13 +412,45 @@ with tab1:
         params=parametros_facturas
     )
 
+    # ----------------------------
+    # KPIS
+    # ----------------------------
 
-    df_filtrado = df_facturas.copy()
-    #############
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+
+        st.metric(
+            "Pendiente por pagar",
+            f"${saldo_pendiente:,.2f}"
+        )
+
+    with col2:
+
+        st.metric(
+            "Facturas pendientes",
+            facturas_pendientes
+        )
+
+    with col3:
+
+        st.metric(
+            "Facturas vencidas",
+            facturas_vencidas
+        )
+
+    with col4:
+
+        st.metric(
+            "Vencen en 7 días",
+            facturas_proximas
+        )
+
+    st.divider()
 
     if df_facturas.empty:
 
-        st.info("Todavía no hay facturas registradas.")
+        st.info("No hay facturas que coincidan con los filtros seleccionados.")
 
     else:
 
@@ -352,12 +459,16 @@ with tab1:
         # ----------------------------
 
         df_facturas["fecha_factura"] = pd.to_datetime(
-            df_facturas["fecha_factura"]
+            df_facturas["fecha_factura"],
+            errors="coerce"
         ).dt.date
 
         df_facturas["fecha_vencimiento"] = pd.to_datetime(
-            df_facturas["fecha_vencimiento"]
+            df_facturas["fecha_vencimiento"],
+            errors="coerce"
         ).dt.date
+
+        df_facturas["monto"] = df_facturas["monto"].astype(float)
 
         hoy = date.today()
 
@@ -365,114 +476,13 @@ with tab1:
             lambda fecha: (fecha - hoy).days if pd.notnull(fecha) else None
         )
 
+        df_filtrado = df_facturas.copy()
+
         # ----------------------------
-        # CLASIFICACIÓN DE URGENCIA
-        # ----------------------------
-
-        def clasificar_urgencia(fila):
-
-            if fila["estatus"] == "PAGADA":
-                return "PAGADA"
-
-            if fila["estatus"] == "CANCELADA":
-                return "CANCELADA"
-
-            dias = fila["dias_restantes"]
-
-            if dias < 0:
-                return "VENCIDA"
-
-            if dias <= 3:
-                return "URGENTE"
-
-            if dias <= 7:
-                return "PRÓXIMA"
-
-            return "EN TIEMPO"
-
-        df_facturas["urgencia"] = df_facturas.apply(
-            clasificar_urgencia,
-            axis=1
-        )
-
-        
-        # ----------------------------
-        # KPIS
-        # ----------------------------
-
-        pendientes = df_filtrado[
-            df_filtrado["estatus"] == "PENDIENTE"
-        ]
-
-        vencidas = df_filtrado[
-            (df_filtrado["estatus"] == "PENDIENTE") &
-            (df_filtrado["dias_restantes"] < 0)
-        ]
-
-        proximas = df_filtrado[
-            (df_filtrado["estatus"] == "PENDIENTE") &
-            (df_filtrado["dias_restantes"] >= 0) &
-            (df_filtrado["dias_restantes"] <= 7)
-        ]
-
-        pagadas = df_filtrado[
-            df_filtrado["estatus"] == "PAGADA"
-        ]
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-
-            st.metric(
-                "Pendiente por pagar",
-                f"${pendientes['monto'].sum():,.2f}"
-            )
-
-        with col2:
-
-            st.metric(
-                "Facturas pendientes",
-                len(pendientes)
-            )
-
-        with col3:
-
-            st.metric(
-                "Facturas vencidas",
-                len(vencidas)
-            )
-
-        with col4:
-
-            st.metric(
-                "Vencen en 7 días",
-                len(proximas)
-            )
-
-        st.divider()
-
-                # ----------------------------
         # TABLA VISUAL DE FACTURAS
         # ----------------------------
 
         st.markdown("### Facturas registradas")
-
-        def formatear_fecha(valor):
-
-            if pd.isna(valor):
-                return "-"
-
-            try:
-                return valor.strftime("%d/%m/%Y")
-            except Exception:
-                return str(valor)
-
-        def formatear_monto(valor):
-
-            if pd.isna(valor):
-                return "$0.00"
-
-            return f"${float(valor):,.2f}"
 
         def obtener_estatus_visual(fila):
 
@@ -703,9 +713,9 @@ with tab1:
 
             visual = obtener_estatus_visual(fila)
 
-            proveedor_html = escape(str(fila["proveedor"] or "-"))
-            folio_html = escape(str(fila["folio"] or "-"))
-            observaciones_html = escape(str(fila["observaciones"] or "-"))
+            proveedor_html = escape(limpiar_texto_factura(fila["proveedor"]))
+            folio_html = escape(limpiar_texto_factura(fila["folio"]))
+            observaciones_html = escape(limpiar_texto_factura(fila["observaciones"]))
 
             filas_html += f"""
                 <tr class="{visual['clase_fila']}">
@@ -740,400 +750,436 @@ with tab1:
                 </tr>
             """
 
-        if df_filtrado.empty:
+        tabla_html = f"""
+        {estilos_tabla}
 
-            st.info("No hay facturas que coincidan con los filtros seleccionados.")
+        <div class="tabla-facturas-contenedor">
+            <table class="tabla-facturas">
+                <thead>
+                    <tr>
+                        <th>Proveedor</th>
+                        <th>Folio</th>
+                        <th>Fecha factura</th>
+                        <th>Vencimiento</th>
+                        <th>Estatus</th>
+                        <th>Monto</th>
+                        <th>Observaciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filas_html}
+                </tbody>
+            </table>
+        </div>
+        """
 
-        else:
+        altura_tabla = min(
+            750,
+            130 + (len(df_filtrado) * 78)
+        )
 
-            tabla_html = f"""
-            {estilos_tabla}
+        components.html(
+            tabla_html,
+            height=altura_tabla,
+            scrolling=True
+        )
 
-            <div class="tabla-facturas-contenedor">
-                <table class="tabla-facturas">
-                    <thead>
-                        <tr>
-                            <th>Proveedor</th>
-                            <th>Folio</th>
-                            <th>Fecha factura</th>
-                            <th>Vencimiento</th>
-                            <th>Estatus</th>
-                            <th>Monto</th>
-                            <th>Observaciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filas_html}
-                    </tbody>
-                </table>
-            </div>
-            """
-
-            altura_tabla = min(
-                750,
-                130 + (len(df_filtrado) * 78)
-            )
-
-            components.html(
-                tabla_html,
-                height=altura_tabla,
-                scrolling=True
-            )
-
-            st.caption(
-                f"Facturas mostradas: {len(df_filtrado)}"
-            )
+        st.caption(
+            f"Facturas mostradas en esta página: {len(df_filtrado)} de {total_registros} resultados."
+        )
 
         st.divider()
-                       # ----------------------------
+
+        # ----------------------------
         # ACCIONES SOBRE FACTURAS
         # ----------------------------
 
         with st.expander("Administración de factura", expanded=False):
 
-            if df_filtrado.empty:
+            opciones_facturas = {}
 
-                st.info("No hay facturas disponibles para administrar con los filtros actuales.")
+            for _, fila in df_filtrado.iterrows():
+
+                etiqueta = (
+                    f"{limpiar_texto_factura(fila['proveedor'])} | "
+                    f"Folio: {limpiar_texto_factura(fila['folio'])} | "
+                    f"{limpiar_texto_factura(fila['estatus'])} | "
+                    f"Vence: {formatear_fecha(fila['fecha_vencimiento'])} | "
+                    f"{formatear_monto(fila['monto'])}"
+                )
+
+                opciones_facturas[etiqueta] = int(fila["factura_id"])
+
+            factura_sel = st.selectbox(
+                "Selecciona una factura",
+                list(opciones_facturas.keys()),
+                key="select_factura_administrar"
+            )
+
+            factura_id_sel = opciones_facturas[factura_sel]
+
+            factura_data = df_facturas[
+                df_facturas["factura_id"] == factura_id_sel
+            ].iloc[0]
+
+            estatus_actual = factura_data["estatus"]
+            dias_actuales = factura_data["dias_restantes"]
+
+            if pd.isna(dias_actuales):
+                dias_actuales = 0
+            else:
+                dias_actuales = int(dias_actuales)
+
+            if estatus_actual == "CANCELADA":
+                color_estado = "#64748b"
+                fondo_estado = "#ffffff"
+                borde_estado = "#cbd5e1"
+                texto_estado = "CANCELADA"
+
+            elif estatus_actual == "PAGADA":
+                color_estado = "#075985"
+                fondo_estado = "#e0f2fe"
+                borde_estado = "#7dd3fc"
+                texto_estado = "PAGADA"
+
+            elif dias_actuales < 0:
+                color_estado = "#991b1b"
+                fondo_estado = "#fee2e2"
+                borde_estado = "#fca5a5"
+                texto_estado = "VENCIDA"
+
+            elif dias_actuales <= 7:
+                color_estado = "#9a3412"
+                fondo_estado = "#ffedd5"
+                borde_estado = "#fdba74"
+                texto_estado = "POR VENCER"
 
             else:
+                color_estado = "#166534"
+                fondo_estado = "#dcfce7"
+                borde_estado = "#86efac"
+                texto_estado = "EN TIEMPO"
 
-                opciones_facturas = {}
+            proveedor_resumen = escape(limpiar_texto_factura(factura_data["proveedor"]))
+            folio_resumen = escape(limpiar_texto_factura(factura_data["folio"]))
+            monto_resumen = float(factura_data["monto"])
 
-                for _, fila in df_filtrado.iterrows():
+            resumen_html = f"""
+            <style>
+                body {{
+                    margin: 0;
+                    padding: 0;
+                    background: transparent;
+                    font-family: Arial, sans-serif;
+                }}
 
-                    etiqueta = (
-                        f"{fila['proveedor']} | "
-                        f"Folio: {fila['folio']} | "
-                        f"{fila['estatus']} | "
-                        f"Vence: {fila['fecha_vencimiento']} | "
-                        f"${float(fila['monto']):,.2f}"
-                    )
+                .card-factura {{
+                    border: 1px solid #e5e7eb;
+                    border-radius: 16px;
+                    padding: 20px 22px;
+                    background: #ffffff;
+                    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+                }}
 
-                    opciones_facturas[etiqueta] = int(fila["factura_id"])
+                .card-contenido {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 16px;
+                    flex-wrap: wrap;
+                }}
 
-                factura_sel = st.selectbox(
-                    "Selecciona una factura",
-                    list(opciones_facturas.keys()),
-                    key="select_factura_administrar"
-                )
+                .label {{
+                    font-size: 13px;
+                    color: #64748b;
+                    font-weight: 600;
+                    margin-bottom: 5px;
+                }}
 
-                factura_id_sel = opciones_facturas[factura_sel]
+                .proveedor {{
+                    font-size: 21px;
+                    color: #111827;
+                    font-weight: 800;
+                }}
 
-                factura_data = df_facturas[
-                    df_facturas["factura_id"] == factura_id_sel
-                ].iloc[0]
+                .folio {{
+                    font-size: 14px;
+                    color: #475569;
+                    margin-top: 5px;
+                }}
 
-                # ----------------------------
-                # RESUMEN VISUAL
-                # ----------------------------
+                .lado-derecho {{
+                    text-align: right;
+                }}
 
-                estatus_actual = factura_data["estatus"]
-                dias_actuales = factura_data["dias_restantes"]
+                .badge-estado {{
+                    display: inline-block;
+                    background: {fondo_estado};
+                    color: {color_estado};
+                    border: 1px solid {borde_estado};
+                    border-radius: 999px;
+                    padding: 7px 14px;
+                    font-size: 12px;
+                    font-weight: 800;
+                    letter-spacing: 0.3px;
+                }}
 
-                if pd.isna(dias_actuales):
-                    dias_actuales = 0
-                else:
-                    dias_actuales = int(dias_actuales)
+                .monto {{
+                    font-size: 24px;
+                    color: #111827;
+                    font-weight: 800;
+                    margin-top: 10px;
+                }}
+            </style>
 
-                if estatus_actual == "CANCELADA":
-                    color_estado = "#64748b"
-                    fondo_estado = "#ffffff"
-                    borde_estado = "#cbd5e1"
-                    texto_estado = "CANCELADA"
+            <div class="card-factura">
+                <div class="card-contenido">
+                    <div>
+                        <div class="label">Factura seleccionada</div>
+                        <div class="proveedor">{proveedor_resumen}</div>
+                        <div class="folio">Folio: <strong>{folio_resumen}</strong></div>
+                    </div>
 
-                elif estatus_actual == "PAGADA":
-                    color_estado = "#075985"
-                    fondo_estado = "#e0f2fe"
-                    borde_estado = "#7dd3fc"
-                    texto_estado = "PAGADA"
-
-                elif dias_actuales < 0:
-                    color_estado = "#991b1b"
-                    fondo_estado = "#fee2e2"
-                    borde_estado = "#fca5a5"
-                    texto_estado = "VENCIDA"
-
-                elif dias_actuales <= 7:
-                    color_estado = "#9a3412"
-                    fondo_estado = "#ffedd5"
-                    borde_estado = "#fdba74"
-                    texto_estado = "POR VENCER"
-
-                else:
-                    color_estado = "#166534"
-                    fondo_estado = "#dcfce7"
-                    borde_estado = "#86efac"
-                    texto_estado = "EN TIEMPO"
-
-                proveedor_resumen = escape(str(factura_data["proveedor"]))
-                folio_resumen = escape(str(factura_data["folio"]))
-                monto_resumen = float(factura_data["monto"])
-
-                resumen_html = f"""
-                <style>
-                    body {{
-                        margin: 0;
-                        padding: 0;
-                        background: transparent;
-                        font-family: Arial, sans-serif;
-                    }}
-
-                    .card-factura {{
-                        border: 1px solid #e5e7eb;
-                        border-radius: 16px;
-                        padding: 20px 22px;
-                        background: #ffffff;
-                        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
-                    }}
-
-                    .card-contenido {{
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        gap: 16px;
-                        flex-wrap: wrap;
-                    }}
-
-                    .label {{
-                        font-size: 13px;
-                        color: #64748b;
-                        font-weight: 600;
-                        margin-bottom: 5px;
-                    }}
-
-                    .proveedor {{
-                        font-size: 21px;
-                        color: #111827;
-                        font-weight: 800;
-                    }}
-
-                    .folio {{
-                        font-size: 14px;
-                        color: #475569;
-                        margin-top: 5px;
-                    }}
-
-                    .lado-derecho {{
-                        text-align: right;
-                    }}
-
-                    .badge-estado {{
-                        display: inline-block;
-                        background: {fondo_estado};
-                        color: {color_estado};
-                        border: 1px solid {borde_estado};
-                        border-radius: 999px;
-                        padding: 7px 14px;
-                        font-size: 12px;
-                        font-weight: 800;
-                        letter-spacing: 0.3px;
-                    }}
-
-                    .monto {{
-                        font-size: 24px;
-                        color: #111827;
-                        font-weight: 800;
-                        margin-top: 10px;
-                    }}
-                </style>
-
-                <div class="card-factura">
-                    <div class="card-contenido">
-                        <div>
-                            <div class="label">Factura seleccionada</div>
-                            <div class="proveedor">{proveedor_resumen}</div>
-                            <div class="folio">Folio: <strong>{folio_resumen}</strong></div>
-                        </div>
-
-                        <div class="lado-derecho">
-                            <span class="badge-estado">{texto_estado}</span>
-                            <div class="monto">${monto_resumen:,.2f}</div>
-                        </div>
+                    <div class="lado-derecho">
+                        <span class="badge-estado">{texto_estado}</span>
+                        <div class="monto">${monto_resumen:,.2f}</div>
                     </div>
                 </div>
-                """
+            </div>
+            """
 
-                components.html(
-                    resumen_html,
-                    height=150,
-                    scrolling=False
+            components.html(
+                resumen_html,
+                height=150,
+                scrolling=False
+            )
+
+            st.markdown("#### Editar datos de la factura")
+
+            dias_credito_actual = (
+                0 if pd.isna(factura_data["dias_credito"])
+                else int(factura_data["dias_credito"])
+            )
+
+            estatus_opciones = ["PENDIENTE", "PAGADA", "CANCELADA"]
+
+            if factura_data["estatus"] in estatus_opciones:
+                index_estatus = estatus_opciones.index(factura_data["estatus"])
+            else:
+                index_estatus = 0
+
+            fecha_factura_actual = (
+                date.today()
+                if pd.isna(factura_data["fecha_factura"])
+                else factura_data["fecha_factura"]
+            )
+
+            fecha_vencimiento_actual = (
+                date.today()
+                if pd.isna(factura_data["fecha_vencimiento"])
+                else factura_data["fecha_vencimiento"]
+            )
+
+            with st.form("form_editar_factura"):
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    folio_edit = st.text_input(
+                        "Folio",
+                        value=str(factura_data["folio"]),
+                        key="folio_edit_factura"
+                    )
+
+                    fecha_factura_edit = st.date_input(
+                        "Fecha de factura",
+                        value=fecha_factura_actual,
+                        key="fecha_factura_edit"
+                    )
+
+                    dias_credito_edit = st.number_input(
+                        "Días de crédito",
+                        min_value=0,
+                        max_value=365,
+                        value=dias_credito_actual,
+                        key="dias_credito_edit"
+                    )
+
+                with col2:
+
+                    fecha_vencimiento_edit = st.date_input(
+                        "Fecha de vencimiento",
+                        value=fecha_vencimiento_actual,
+                        key="fecha_vencimiento_edit"
+                    )
+
+                    monto_edit = st.number_input(
+                        "Monto",
+                        min_value=0.0,
+                        step=100.0,
+                        format="%.2f",
+                        value=float(factura_data["monto"]),
+                        key="monto_edit_factura"
+                    )
+
+                    estatus_edit = st.selectbox(
+                        "Estatus",
+                        estatus_opciones,
+                        index=index_estatus,
+                        key="estatus_edit_factura"
+                    )
+
+                recalcular_vencimiento = st.checkbox(
+                    "Recalcular vencimiento automáticamente usando fecha de factura + días de crédito",
+                    value=False,
+                    key="recalcular_vencimiento_edit"
                 )
 
-                # ----------------------------
-                # FORMULARIO DE EDICIÓN
-                # ----------------------------
-
-                st.markdown("#### Editar datos de la factura")
-
-                dias_credito_actual = (
-                    0 if pd.isna(factura_data["dias_credito"])
-                    else int(factura_data["dias_credito"])
+                observaciones_actuales = (
+                    "" if pd.isna(factura_data["observaciones"])
+                    else str(factura_data["observaciones"])
                 )
 
-                estatus_opciones = ["PENDIENTE", "PAGADA", "CANCELADA"]
+                observaciones_edit = st.text_area(
+                    "Observaciones",
+                    value=observaciones_actuales,
+                    key="observaciones_edit_factura"
+                )
 
-                if factura_data["estatus"] in estatus_opciones:
-                    index_estatus = estatus_opciones.index(factura_data["estatus"])
+                guardar_cambios_factura = st.form_submit_button(
+                    "Guardar cambios de factura",
+                    use_container_width=True
+                )
+
+            if guardar_cambios_factura:
+
+                if folio_edit.strip() == "":
+
+                    st.error("El folio de la factura es obligatorio.")
+                    st.stop()
+
+                if monto_edit <= 0:
+
+                    st.error("El monto debe ser mayor a 0.")
+                    st.stop()
+
+                if recalcular_vencimiento:
+
+                    fecha_vencimiento_final = (
+                        fecha_factura_edit +
+                        timedelta(days=int(dias_credito_edit))
+                    )
+
                 else:
-                    index_estatus = 0
 
-                with st.form("form_editar_factura"):
+                    fecha_vencimiento_final = fecha_vencimiento_edit
 
-                    col1, col2 = st.columns(2)
+                try:
 
-                    with col1:
+                    cursor.execute("""
+                        SELECT proveedor_id
+                        FROM facturas
+                        WHERE factura_id = %s
+                    """, (
+                        factura_id_sel,
+                    ))
 
-                        folio_edit = st.text_input(
-                            "Folio",
-                            value=str(factura_data["folio"]),
-                            key="folio_edit_factura"
-                        )
+                    proveedor_id_actual = cursor.fetchone()[0]
 
-                        fecha_factura_edit = st.date_input(
-                            "Fecha de factura",
-                            value=factura_data["fecha_factura"],
-                            key="fecha_factura_edit"
-                        )
+                    cursor.execute("""
+                        SELECT COUNT(*)
+                        FROM facturas
+                        WHERE proveedor_id = %s
+                        AND UPPER(folio) = UPPER(%s)
+                        AND factura_id <> %s
+                    """, (
+                        proveedor_id_actual,
+                        folio_edit.strip(),
+                        factura_id_sel
+                    ))
 
-                        dias_credito_edit = st.number_input(
-                            "Días de crédito",
-                            min_value=0,
-                            max_value=365,
-                            value=dias_credito_actual,
-                            key="dias_credito_edit"
-                        )
+                    existe_folio = cursor.fetchone()[0]
 
-                    with col2:
+                    if existe_folio > 0:
 
-                        fecha_vencimiento_edit = st.date_input(
-                            "Fecha de vencimiento",
-                            value=factura_data["fecha_vencimiento"],
-                            key="fecha_vencimiento_edit"
-                        )
-
-                        monto_edit = st.number_input(
-                            "Monto",
-                            min_value=0.0,
-                            step=100.0,
-                            format="%.2f",
-                            value=float(factura_data["monto"]),
-                            key="monto_edit_factura"
-                        )
-
-                        estatus_edit = st.selectbox(
-                            "Estatus",
-                            estatus_opciones,
-                            index=index_estatus,
-                            key="estatus_edit_factura"
-                        )
-
-                    recalcular_vencimiento = st.checkbox(
-                        "Recalcular vencimiento automáticamente usando fecha de factura + días de crédito",
-                        value=False,
-                        key="recalcular_vencimiento_edit"
-                    )
-
-                    observaciones_actuales = (
-                        "" if pd.isna(factura_data["observaciones"])
-                        else str(factura_data["observaciones"])
-                    )
-
-                    observaciones_edit = st.text_area(
-                        "Observaciones",
-                        value=observaciones_actuales,
-                        key="observaciones_edit_factura"
-                    )
-
-                    guardar_cambios_factura = st.form_submit_button(
-                        "Guardar cambios de factura",
-                        use_container_width=True
-                    )
-
-                if guardar_cambios_factura:
-
-                    if folio_edit.strip() == "":
-
-                        st.error("El folio de la factura es obligatorio.")
+                        st.error("Ya existe otra factura con ese folio para este proveedor.")
                         st.stop()
 
-                    if monto_edit <= 0:
+                    cursor.execute("""
+                        UPDATE facturas
+                        SET
+                            folio = %s,
+                            fecha_factura = %s,
+                            dias_credito = %s,
+                            fecha_vencimiento = %s,
+                            monto = %s,
+                            estatus = %s,
+                            observaciones = %s
+                        WHERE factura_id = %s
+                    """, (
+                        folio_edit.strip(),
+                        fecha_factura_edit,
+                        int(dias_credito_edit),
+                        fecha_vencimiento_final,
+                        monto_edit,
+                        estatus_edit,
+                        observaciones_edit.strip(),
+                        factura_id_sel
+                    ))
 
-                        st.error("El monto debe ser mayor a 0.")
-                        st.stop()
+                    conn.commit()
 
-                    if recalcular_vencimiento:
+                    registrar_log(
+                        st.session_state["usuario"],
+                        "MODIFICACION_FACTURA",
+                        f"Modificó la factura ID {factura_id_sel}"
+                    )
 
-                        fecha_vencimiento_final = (
-                            fecha_factura_edit +
-                            timedelta(days=int(dias_credito_edit))
-                        )
+                    st.success("Factura actualizada correctamente.")
 
-                    else:
+                    st.rerun()
 
-                        fecha_vencimiento_final = fecha_vencimiento_edit
+                except Exception as e:
+
+                    conn.rollback()
+
+                    st.error(e)
+
+            st.divider()
+
+            st.markdown("#### Acciones rápidas")
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+
+                if st.button(
+                    "Marcar como pagada",
+                    use_container_width=True,
+                    disabled=estatus_actual == "PAGADA",
+                    key="btn_marcar_pagada"
+                ):
 
                     try:
 
                         cursor.execute("""
-                            SELECT proveedor_id
-                            FROM facturas
+                            UPDATE facturas
+                            SET estatus = 'PAGADA'
                             WHERE factura_id = %s
                         """, (
                             factura_id_sel,
-                        ))
-
-                        proveedor_id_actual = cursor.fetchone()[0]
-
-                        cursor.execute("""
-                            SELECT COUNT(*)
-                            FROM facturas
-                            WHERE proveedor_id = %s
-                            AND UPPER(folio) = UPPER(%s)
-                            AND factura_id <> %s
-                        """, (
-                            proveedor_id_actual,
-                            folio_edit.strip(),
-                            factura_id_sel
-                        ))
-
-                        existe_folio = cursor.fetchone()[0]
-
-                        if existe_folio > 0:
-
-                            st.error("Ya existe otra factura con ese folio para este proveedor.")
-                            st.stop()
-
-                        cursor.execute("""
-                            UPDATE facturas
-                            SET
-                                folio = %s,
-                                fecha_factura = %s,
-                                dias_credito = %s,
-                                fecha_vencimiento = %s,
-                                monto = %s,
-                                estatus = %s,
-                                observaciones = %s
-                            WHERE factura_id = %s
-                        """, (
-                            folio_edit.strip(),
-                            fecha_factura_edit,
-                            int(dias_credito_edit),
-                            fecha_vencimiento_final,
-                            monto_edit,
-                            estatus_edit,
-                            observaciones_edit.strip(),
-                            factura_id_sel
                         ))
 
                         conn.commit()
 
                         registrar_log(
                             st.session_state["usuario"],
-                            "MODIFICACION_FACTURA",
-                            f"Modificó la factura ID {factura_id_sel}"
+                            "FACTURA_PAGADA",
+                            f"Marcó como pagada la factura ID {factura_id_sel}"
                         )
 
-                        st.success("Factura actualizada correctamente.")
+                        st.success("Factura marcada como pagada correctamente.")
 
                         st.rerun()
 
@@ -1143,131 +1189,79 @@ with tab1:
 
                         st.error(e)
 
-                st.divider()
+            with col2:
 
-                # ----------------------------
-                # ACCIONES RÁPIDAS
-                # ----------------------------
+                if st.button(
+                    "Cancelar factura",
+                    use_container_width=True,
+                    disabled=estatus_actual == "CANCELADA",
+                    key="btn_cancelar_factura"
+                ):
 
-                st.markdown("#### Acciones rápidas")
+                    try:
 
-                col1, col2, col3 = st.columns(3)
+                        cursor.execute("""
+                            UPDATE facturas
+                            SET estatus = 'CANCELADA'
+                            WHERE factura_id = %s
+                        """, (
+                            factura_id_sel,
+                        ))
 
-                with col1:
+                        conn.commit()
 
-                    if st.button(
-                        "Marcar como pagada",
-                        use_container_width=True,
-                        disabled=estatus_actual == "PAGADA",
-                        key="btn_marcar_pagada"
-                    ):
+                        registrar_log(
+                            st.session_state["usuario"],
+                            "FACTURA_CANCELADA",
+                            f"Canceló la factura ID {factura_id_sel}"
+                        )
 
-                        try:
+                        st.success("Factura cancelada correctamente.")
 
-                            cursor.execute("""
-                                UPDATE facturas
-                                SET estatus = 'PAGADA'
-                                WHERE factura_id = %s
-                            """, (
-                                factura_id_sel,
-                            ))
+                        st.rerun()
 
-                            conn.commit()
+                    except Exception as e:
 
-                            registrar_log(
-                                st.session_state["usuario"],
-                                "FACTURA_PAGADA",
-                                f"Marcó como pagada la factura ID {factura_id_sel}"
-                            )
+                        conn.rollback()
 
-                            st.success("Factura marcada como pagada correctamente.")
+                        st.error(e)
 
-                            st.rerun()
+            with col3:
 
-                        except Exception as e:
+                if st.button(
+                    "Reabrir como pendiente",
+                    use_container_width=True,
+                    disabled=estatus_actual == "PENDIENTE",
+                    key="btn_reabrir_factura"
+                ):
 
-                            conn.rollback()
+                    try:
 
-                            st.error(e)
+                        cursor.execute("""
+                            UPDATE facturas
+                            SET estatus = 'PENDIENTE'
+                            WHERE factura_id = %s
+                        """, (
+                            factura_id_sel,
+                        ))
 
-                with col2:
+                        conn.commit()
 
-                    if st.button(
-                        "Cancelar factura",
-                        use_container_width=True,
-                        disabled=estatus_actual == "CANCELADA",
-                        key="btn_cancelar_factura"
-                    ):
+                        registrar_log(
+                            st.session_state["usuario"],
+                            "FACTURA_REABIERTA",
+                            f"Reabrió como pendiente la factura ID {factura_id_sel}"
+                        )
 
-                        try:
+                        st.success("Factura reabierta como pendiente correctamente.")
 
-                            cursor.execute("""
-                                UPDATE facturas
-                                SET estatus = 'CANCELADA'
-                                WHERE factura_id = %s
-                            """, (
-                                factura_id_sel,
-                            ))
+                        st.rerun()
 
-                            conn.commit()
+                    except Exception as e:
 
-                            registrar_log(
-                                st.session_state["usuario"],
-                                "FACTURA_CANCELADA",
-                                f"Canceló la factura ID {factura_id_sel}"
-                            )
+                        conn.rollback()
 
-                            st.success("Factura cancelada correctamente.")
-
-                            st.rerun()
-
-                        except Exception as e:
-
-                            conn.rollback()
-
-                            st.error(e)
-
-                with col3:
-
-                    if st.button(
-                        "Reabrir como pendiente",
-                        use_container_width=True,
-                        disabled=estatus_actual == "PENDIENTE",
-                        key="btn_reabrir_factura"
-                    ):
-
-                        try:
-
-                            cursor.execute("""
-                                UPDATE facturas
-                                SET estatus = 'PENDIENTE'
-                                WHERE factura_id = %s
-                            """, (
-                                factura_id_sel,
-                            ))
-
-                            conn.commit()
-
-                            registrar_log(
-                                st.session_state["usuario"],
-                                "FACTURA_REABIERTA",
-                                f"Reabrió como pendiente la factura ID {factura_id_sel}"
-                            )
-
-                            st.success("Factura reabierta como pendiente correctamente.")
-
-                            st.rerun()
-
-                        except Exception as e:
-
-                            conn.rollback()
-
-                            st.error(e)
-#----------------------------
-#GESTION DE PROVEEDORES
-#----------------------------
-
-
+                        st.error(e)
 
 
 # ----------------------------
