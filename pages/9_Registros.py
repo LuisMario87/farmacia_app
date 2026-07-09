@@ -295,7 +295,8 @@ with tab1:
 
             cantidad = st.selectbox(
                 "📄 Registros a mostrar",
-                ["Últimos 20", "Últimos 100", "Todos"]
+                ["Últimos 20", "Últimos 100", "Todos"],
+                key="ventas_registros_a_mostrar"
             )
 
             if cantidad == "Últimos 20":
@@ -641,7 +642,8 @@ with tab2:
 
             cantidad = st.selectbox(
                 "📄 Registros a mostrar",
-                ["Últimos 20", "Últimos 100", "Todos"]
+                ["Últimos 20", "Últimos 100", "Todos"],
+                key="gastos_registros_a_mostrar"
             )
 
             limit_sql = (
