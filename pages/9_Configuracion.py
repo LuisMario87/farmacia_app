@@ -324,12 +324,277 @@ with tab3:
 # TAB 2 - GESTIÓN DE FARMACIAS
 # ==================================================
 
+# ==================================================
+# TAB 2 - GESTIÓN DE FARMACIAS
+# ==================================================
+
 with tab2:
 
     st.subheader("Gestión de farmacias")
 
-    st.info("Aquí integraremos la lógica de la página de Gestión de farmacias.")
+    # ---------------------------------
+    # CARGAR FARMACIAS
+    # ---------------------------------
 
+    df_farmacias = pd.read_sql(
+        """
+        SELECT
+            farmacia_id,
+            nombre,
+            ciudad,
+            estado
+        FROM farmacias
+        ORDER BY nombre
+        """,
+        conn
+    )
+
+    # =================================
+    # REGISTRO DE NUEVA FARMACIA
+    # =================================
+
+    st.subheader("Registrar nueva farmacia")
+
+    with st.form("config_form_nueva_farmacia", clear_on_submit=True):
+
+        nombre = st.text_input(
+            "Nombre de la farmacia",
+            key="config_nombre_nueva_farmacia"
+        )
+
+        ciudad = st.text_input(
+            "Ciudad",
+            key="config_ciudad_nueva_farmacia"
+        )
+
+        submitted = st.form_submit_button(
+            "Guardar farmacia",
+            use_container_width=True
+        )
+
+        if submitted:
+
+            if not nombre.strip() or not ciudad.strip():
+
+                st.error("Nombre y ciudad son obligatorios.")
+
+            else:
+
+                try:
+
+                    cursor.execute(
+                        """
+                        INSERT INTO farmacias (
+                            nombre,
+                            ciudad,
+                            estado
+                        )
+                        VALUES (%s, %s, %s)
+                        """,
+                        (
+                            nombre.strip(),
+                            ciudad.strip(),
+                            "ACTIVA"
+                        )
+                    )
+
+                    conn.commit()
+
+                    st.success("Farmacia registrada correctamente.")
+
+                    st.rerun()
+
+                except Exception as e:
+
+                    conn.rollback()
+
+                    st.error(f"Error al registrar: {e}")
+
+    st.divider()
+
+    # =================================
+    # LISTADO + EDICIÓN
+    # =================================
+
+    st.subheader("Farmacias registradas")
+
+    if df_farmacias.empty:
+
+        st.info("No hay farmacias registradas.")
+
+    else:
+
+        mostrar = st.radio(
+            "Mostrar",
+            [
+                "Primeras 20",
+                "Primeras 100",
+                "Todas"
+            ],
+            horizontal=True,
+            key="config_mostrar_farmacias"
+        )
+
+        if mostrar == "Primeras 20":
+
+            df_view = df_farmacias.head(20)
+
+        elif mostrar == "Primeras 100":
+
+            df_view = df_farmacias.head(100)
+
+        else:
+
+            df_view = df_farmacias
+
+        for _, row in df_view.iterrows():
+
+            estado_actual = row["estado"] if row["estado"] else "ACTIVA"
+
+            estado_icono = "🟢" if estado_actual == "ACTIVA" else "🔴"
+
+            with st.expander(
+                f"{estado_icono} {row['nombre']} ({row['ciudad']})"
+            ):
+
+                col1, col2, col3 = st.columns(3)
+
+                nuevo_nombre = col1.text_input(
+                    "Nombre",
+                    value=row["nombre"],
+                    key=f"config_nombre_farmacia_{row['farmacia_id']}"
+                )
+
+                nueva_ciudad = col2.text_input(
+                    "Ciudad",
+                    value=row["ciudad"],
+                    key=f"config_ciudad_farmacia_{row['farmacia_id']}"
+                )
+
+                nuevo_estado = col3.selectbox(
+                    "Estado",
+                    [
+                        "ACTIVA",
+                        "CERRADA"
+                    ],
+                    index=0 if estado_actual == "ACTIVA" else 1,
+                    key=f"config_estado_farmacia_{row['farmacia_id']}"
+                )
+
+                c1, c2 = st.columns(2)
+
+                with c1:
+
+                    if st.button(
+                        "Actualizar",
+                        key=f"config_actualizar_farmacia_{row['farmacia_id']}",
+                        use_container_width=True
+                    ):
+
+                        if not nuevo_nombre.strip() or not nueva_ciudad.strip():
+
+                            st.error("Nombre y ciudad son obligatorios.")
+
+                        else:
+
+                            try:
+
+                                cursor.execute(
+                                    """
+                                    UPDATE farmacias
+                                    SET
+                                        nombre = %s,
+                                        ciudad = %s,
+                                        estado = %s
+                                    WHERE farmacia_id = %s
+                                    """,
+                                    (
+                                        nuevo_nombre.strip(),
+                                        nueva_ciudad.strip(),
+                                        nuevo_estado,
+                                        row["farmacia_id"]
+                                    )
+                                )
+
+                                conn.commit()
+
+                                st.success("Farmacia actualizada correctamente.")
+
+                                st.rerun()
+
+                            except Exception as e:
+
+                                conn.rollback()
+
+                                st.error(f"Error al actualizar: {e}")
+
+                with c2:
+
+                    if estado_actual == "ACTIVA":
+
+                        if st.button(
+                            "Cerrar farmacia",
+                            key=f"config_cerrar_farmacia_{row['farmacia_id']}",
+                            use_container_width=True
+                        ):
+
+                            try:
+
+                                cursor.execute(
+                                    """
+                                    UPDATE farmacias
+                                    SET estado = 'CERRADA'
+                                    WHERE farmacia_id = %s
+                                    """,
+                                    (
+                                        row["farmacia_id"],
+                                    )
+                                )
+
+                                conn.commit()
+
+                                st.success("Farmacia marcada como cerrada.")
+
+                                st.rerun()
+
+                            except Exception as e:
+
+                                conn.rollback()
+
+                                st.error(f"Error: {e}")
+
+                    else:
+
+                        if st.button(
+                            "Reabrir farmacia",
+                            key=f"config_reabrir_farmacia_{row['farmacia_id']}",
+                            use_container_width=True
+                        ):
+
+                            try:
+
+                                cursor.execute(
+                                    """
+                                    UPDATE farmacias
+                                    SET estado = 'ACTIVA'
+                                    WHERE farmacia_id = %s
+                                    """,
+                                    (
+                                        row["farmacia_id"],
+                                    )
+                                )
+
+                                conn.commit()
+
+                                st.success("Farmacia reactivada correctamente.")
+
+                                st.rerun()
+
+                            except Exception as e:
+
+                                conn.rollback()
+
+                                st.error(f"Error: {e}")
 
 # ==================================================
 # TAB 3 - LOGS
