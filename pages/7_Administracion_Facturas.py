@@ -2419,6 +2419,210 @@ with tab2:
                 conn.rollback()
 
                 st.error(e)
+                st.divider()
+
+        # ----------------------------
+        # ÚLTIMAS FACTURAS REGISTRADAS
+        # ----------------------------
+
+        st.markdown("### Últimas facturas registradas")
+
+        df_ultimas_facturas = pd.read_sql("""
+            SELECT
+                f.factura_id,
+                p.nombre AS proveedor,
+                f.folio,
+                f.fecha_factura,
+                f.fecha_vencimiento,
+                f.monto,
+                f.estatus
+            FROM facturas f
+            LEFT JOIN proveedores p
+                ON f.proveedor_id = p.proveedor_id
+            ORDER BY f.created_at DESC
+            LIMIT 8
+        """, conn)
+
+        if df_ultimas_facturas.empty:
+
+            st.info("Todavía no hay facturas registradas.")
+
+        else:
+
+            df_ultimas_facturas["fecha_factura"] = pd.to_datetime(
+                df_ultimas_facturas["fecha_factura"]
+            ).dt.strftime("%d/%m/%Y")
+
+            df_ultimas_facturas["fecha_vencimiento"] = pd.to_datetime(
+                df_ultimas_facturas["fecha_vencimiento"]
+            ).dt.strftime("%d/%m/%Y")
+
+            df_ultimas_facturas["monto"] = df_ultimas_facturas["monto"].astype(float)
+
+            estilos_ultimas = """
+            <style>
+                body {
+                    margin: 0;
+                    padding: 0;
+                    background: transparent;
+                    font-family: Arial, sans-serif;
+                }
+
+                .ultimas-contenedor {
+                    width: 100%;
+                    overflow-x: auto;
+                    border-radius: 16px;
+                    border: 1px solid #e5e7eb;
+                    background: #ffffff;
+                    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+                }
+
+                .tabla-ultimas {
+                    width: 100%;
+                    border-collapse: separate;
+                    border-spacing: 0;
+                    font-size: 14px;
+                }
+
+                .tabla-ultimas thead th {
+                    background: #f8fafc;
+                    color: #334155;
+                    text-align: left;
+                    padding: 14px 16px;
+                    font-weight: 700;
+                    border-bottom: 1px solid #e5e7eb;
+                    white-space: nowrap;
+                }
+
+                .tabla-ultimas tbody td {
+                    padding: 14px 16px;
+                    border-bottom: 1px solid #f1f5f9;
+                    color: #1f2937;
+                    vertical-align: middle;
+                    background: #ffffff;
+                }
+
+                .tabla-ultimas tbody tr:hover td {
+                    background: #f8fafc;
+                }
+
+                .proveedor-ultima {
+                    font-weight: 800;
+                    color: #111827;
+                }
+
+                .folio-ultima {
+                    font-weight: 700;
+                    color: #334155;
+                    background: #f1f5f9;
+                    padding: 5px 9px;
+                    border-radius: 8px;
+                    display: inline-block;
+                }
+
+                .monto-ultima {
+                    font-weight: 800;
+                    color: #111827;
+                    white-space: nowrap;
+                    text-align: right;
+                }
+
+                .badge-pendiente {
+                    background: #ffedd5;
+                    color: #9a3412;
+                    border: 1px solid #fdba74;
+                    border-radius: 999px;
+                    padding: 6px 10px;
+                    font-size: 12px;
+                    font-weight: 800;
+                    display: inline-block;
+                }
+
+                .badge-pagada {
+                    background: #e0f2fe;
+                    color: #075985;
+                    border: 1px solid #7dd3fc;
+                    border-radius: 999px;
+                    padding: 6px 10px;
+                    font-size: 12px;
+                    font-weight: 800;
+                    display: inline-block;
+                }
+
+                .badge-cancelada {
+                    background: #ffffff;
+                    color: #64748b;
+                    border: 1px solid #cbd5e1;
+                    border-radius: 999px;
+                    padding: 6px 10px;
+                    font-size: 12px;
+                    font-weight: 800;
+                    display: inline-block;
+                }
+            </style>
+            """
+
+            filas_ultimas = ""
+
+            for _, fila in df_ultimas_facturas.iterrows():
+
+                estatus = str(fila["estatus"]).upper()
+
+                if estatus == "PAGADA":
+
+                    badge = '<span class="badge-pagada">PAGADA</span>'
+
+                elif estatus == "CANCELADA":
+
+                    badge = '<span class="badge-cancelada">CANCELADA</span>'
+
+                else:
+
+                    badge = '<span class="badge-pendiente">PENDIENTE</span>'
+
+                filas_ultimas += f"""
+                    <tr>
+                        <td><span class="proveedor-ultima">{escape(str(fila["proveedor"] or "-"))}</span></td>
+                        <td><span class="folio-ultima">{escape(str(fila["folio"] or "-"))}</span></td>
+                        <td>{fila["fecha_factura"]}</td>
+                        <td>{fila["fecha_vencimiento"]}</td>
+                        <td>{badge}</td>
+                        <td class="monto-ultima">${float(fila["monto"]):,.2f}</td>
+                    </tr>
+                """
+
+            ultimas_html = f"""
+            {estilos_ultimas}
+
+            <div class="ultimas-contenedor">
+                <table class="tabla-ultimas">
+                    <thead>
+                        <tr>
+                            <th>Proveedor</th>
+                            <th>Folio</th>
+                            <th>Fecha factura</th>
+                            <th>Vencimiento</th>
+                            <th>Estatus</th>
+                            <th>Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filas_ultimas}
+                    </tbody>
+                </table>
+            </div>
+            """
+
+            altura_ultimas = min(
+                620,
+                130 + (len(df_ultimas_facturas) * 68)
+            )
+
+            components.html(
+                ultimas_html,
+                height=altura_ultimas,
+                scrolling=True
+            )
 
 # ----------------------------
 # ESTADÍSTICAS DE FACTURAS
