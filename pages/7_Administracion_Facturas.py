@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
-
-from html import escape
+import streamlit.components.v1 as components
 from datetime import date, timedelta
+from html import escape
+
 from utils.conexionASupabase import get_connection
 from utils.logger import registrar_log
 
@@ -271,7 +272,7 @@ with tab1:
 
         st.divider()
 
-               # ----------------------------
+                # ----------------------------
         # TABLA VISUAL DE FACTURAS
         # ----------------------------
 
@@ -315,10 +316,20 @@ with tab1:
                     "clase_fila": "fila-pagada"
                 }
 
+            if pd.isna(dias):
+                return {
+                    "texto": "SIN FECHA",
+                    "detalle": "Sin vencimiento",
+                    "clase_badge": "badge-cancelada",
+                    "clase_fila": "fila-cancelada"
+                }
+
+            dias = int(dias)
+
             if dias < 0:
                 return {
                     "texto": "VENCIDA",
-                    "detalle": f"Hace {abs(int(dias))} días",
+                    "detalle": f"Hace {abs(dias)} días",
                     "clase_badge": "badge-rojo",
                     "clase_fila": "fila-roja"
                 }
@@ -334,34 +345,40 @@ with tab1:
             if dias <= 7:
                 return {
                     "texto": "POR VENCER",
-                    "detalle": f"Faltan {int(dias)} días",
+                    "detalle": f"Faltan {dias} días",
                     "clase_badge": "badge-naranja",
                     "clase_fila": "fila-naranja"
                 }
 
             return {
                 "texto": "EN TIEMPO",
-                "detalle": f"Faltan {int(dias)} días",
+                "detalle": f"Faltan {dias} días",
                 "clase_badge": "badge-verde",
                 "clase_fila": "fila-verde"
             }
 
         estilos_tabla = """
         <style>
+            body {
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                font-family: Arial, sans-serif;
+            }
+
             .tabla-facturas-contenedor {
                 width: 100%;
                 overflow-x: auto;
-                border-radius: 14px;
+                border-radius: 16px;
                 border: 1px solid #e5e7eb;
-                background: white;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+                background: #ffffff;
+                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
             }
 
             .tabla-facturas {
                 width: 100%;
                 border-collapse: separate;
                 border-spacing: 0;
-                font-family: Arial, sans-serif;
                 font-size: 14px;
             }
 
@@ -369,20 +386,25 @@ with tab1:
                 background: #f8fafc;
                 color: #334155;
                 text-align: left;
-                padding: 14px 16px;
+                padding: 15px 16px;
                 font-weight: 700;
                 border-bottom: 1px solid #e5e7eb;
                 white-space: nowrap;
             }
 
             .tabla-facturas tbody td {
-                padding: 14px 16px;
+                padding: 15px 16px;
                 border-bottom: 1px solid #f1f5f9;
                 color: #1f2937;
                 vertical-align: middle;
+                background: #ffffff;
             }
 
-            .tabla-facturas tbody tr:hover {
+            .tabla-facturas tbody tr:last-child td {
+                border-bottom: none;
+            }
+
+            .tabla-facturas tbody tr:hover td {
                 background: #f8fafc;
             }
 
@@ -392,17 +414,22 @@ with tab1:
             }
 
             .folio-texto {
-                font-weight: 600;
+                font-weight: 700;
                 color: #334155;
+                background: #f1f5f9;
+                padding: 5px 9px;
+                border-radius: 8px;
+                display: inline-block;
             }
 
             .fecha-texto {
                 color: #475569;
                 white-space: nowrap;
+                font-weight: 500;
             }
 
             .monto-texto {
-                font-weight: 700;
+                font-weight: 800;
                 color: #111827;
                 text-align: right;
                 white-space: nowrap;
@@ -410,22 +437,23 @@ with tab1:
 
             .observaciones-texto {
                 color: #64748b;
-                max-width: 260px;
+                max-width: 280px;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                display: inline-block;
             }
 
             .badge {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                min-width: 105px;
-                padding: 6px 10px;
+                min-width: 112px;
+                padding: 7px 11px;
                 border-radius: 999px;
                 font-size: 12px;
                 font-weight: 800;
-                letter-spacing: 0.3px;
+                letter-spacing: 0.35px;
                 text-align: center;
                 white-space: nowrap;
             }
@@ -462,29 +490,30 @@ with tab1:
 
             .estatus-detalle {
                 display: block;
-                margin-top: 4px;
+                margin-top: 5px;
                 font-size: 12px;
                 color: #64748b;
+                font-weight: 500;
             }
 
             .fila-verde td:first-child {
-                border-left: 5px solid #22c55e;
+                border-left: 6px solid #22c55e;
             }
 
             .fila-naranja td:first-child {
-                border-left: 5px solid #f97316;
+                border-left: 6px solid #f97316;
             }
 
             .fila-roja td:first-child {
-                border-left: 5px solid #ef4444;
+                border-left: 6px solid #ef4444;
             }
 
             .fila-cancelada td:first-child {
-                border-left: 5px solid #e5e7eb;
+                border-left: 6px solid #e5e7eb;
             }
 
             .fila-pagada td:first-child {
-                border-left: 5px solid #38bdf8;
+                border-left: 6px solid #38bdf8;
             }
         </style>
         """
@@ -500,7 +529,7 @@ with tab1:
             observaciones_html = escape(str(fila["observaciones"] or "-"))
 
             filas_html += f"""
-                <tr class="{visual["clase_fila"]}">
+                <tr class="{visual['clase_fila']}">
                     <td>
                         <span class="proveedor-texto">{proveedor_html}</span>
                     </td>
@@ -514,11 +543,11 @@ with tab1:
                         <span class="fecha-texto">{formatear_fecha(fila["fecha_vencimiento"])}</span>
                     </td>
                     <td>
-                        <span class="badge {visual["clase_badge"]}">
-                            {visual["texto"]}
+                        <span class="badge {visual['clase_badge']}">
+                            {visual['texto']}
                         </span>
                         <span class="estatus-detalle">
-                            {visual["detalle"]}
+                            {visual['detalle']}
                         </span>
                     </td>
                     <td class="monto-texto">
@@ -561,9 +590,15 @@ with tab1:
             </div>
             """
 
-            st.markdown(
+            altura_tabla = min(
+                750,
+                130 + (len(df_filtrado) * 78)
+            )
+
+            components.html(
                 tabla_html,
-                unsafe_allow_html=True
+                height=altura_tabla,
+                scrolling=True
             )
 
             st.caption(
