@@ -1948,18 +1948,25 @@ with tab3:
                         conn.rollback()
 
                         st.error(e)
+# ----------------------------
+# AGREGAR FACTURA
+# ----------------------------
+
 with tab2:
 
-    st.subheader("Registrar factura")
+    st.subheader("Agregar factura")
 
     df_proveedores_activos = pd.read_sql("""
         SELECT
             proveedor_id,
             nombre,
+            contacto,
+            telefono,
+            correo,
             dias_credito
         FROM proveedores
         WHERE estado = 'ACTIVO'
-        ORDER BY nombre
+        ORDER BY nombre ASC
     """, conn)
 
     if df_proveedores_activos.empty:
@@ -1968,73 +1975,365 @@ with tab2:
 
     else:
 
-        proveedores_nombres = df_proveedores_activos["nombre"].tolist()
+        # ----------------------------
+        # SELECCIÓN DE PROVEEDOR
+        # ----------------------------
 
-        with st.form("form_registrar_factura", clear_on_submit=True):
+        proveedores_dict = {
+            int(fila["proveedor_id"]): fila
+            for _, fila in df_proveedores_activos.iterrows()
+        }
 
-            proveedor = st.selectbox(
-                "Proveedor",
-                proveedores_nombres
+        proveedor_id = st.selectbox(
+            "Proveedor",
+            options=list(proveedores_dict.keys()),
+            format_func=lambda x: proveedores_dict[x]["nombre"],
+            key="proveedor_nueva_factura"
+        )
+
+        proveedor_data = proveedores_dict[proveedor_id]
+
+        proveedor_nombre = str(proveedor_data["nombre"])
+        proveedor_contacto = "" if pd.isna(proveedor_data["contacto"]) else str(proveedor_data["contacto"])
+        proveedor_telefono = "" if pd.isna(proveedor_data["telefono"]) else str(proveedor_data["telefono"])
+        proveedor_correo = "" if pd.isna(proveedor_data["correo"]) else str(proveedor_data["correo"])
+
+        dias_credito_default = (
+            0 if pd.isna(proveedor_data["dias_credito"])
+            else int(proveedor_data["dias_credito"])
+        )
+
+        # ----------------------------
+        # TARJETA DEL PROVEEDOR
+        # ----------------------------
+
+        proveedor_html = f"""
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                font-family: Arial, sans-serif;
+            }}
+
+            .card-proveedor {{
+                border: 1px solid #e5e7eb;
+                border-radius: 16px;
+                padding: 18px 20px;
+                background: #ffffff;
+                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+            }}
+
+            .card-proveedor-contenido {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 16px;
+                flex-wrap: wrap;
+            }}
+
+            .label {{
+                font-size: 13px;
+                color: #64748b;
+                font-weight: 600;
+                margin-bottom: 5px;
+            }}
+
+            .proveedor-nombre {{
+                font-size: 21px;
+                color: #111827;
+                font-weight: 800;
+            }}
+
+            .proveedor-info {{
+                font-size: 13px;
+                color: #475569;
+                margin-top: 5px;
+            }}
+
+            .credito {{
+                display: inline-block;
+                background: #f1f5f9;
+                color: #334155;
+                border: 1px solid #cbd5e1;
+                border-radius: 999px;
+                padding: 8px 14px;
+                font-size: 13px;
+                font-weight: 800;
+            }}
+        </style>
+
+        <div class="card-proveedor">
+            <div class="card-proveedor-contenido">
+                <div>
+                    <div class="label">Proveedor seleccionado</div>
+                    <div class="proveedor-nombre">{escape(proveedor_nombre)}</div>
+                    <div class="proveedor-info">
+                        Contacto: {escape(proveedor_contacto or "-")} |
+                        Tel: {escape(proveedor_telefono or "-")} |
+                        Correo: {escape(proveedor_correo or "-")}
+                    </div>
+                </div>
+
+                <div>
+                    <span class="credito">{dias_credito_default} días de crédito</span>
+                </div>
+            </div>
+        </div>
+        """
+
+        components.html(
+            proveedor_html,
+            height=125,
+            scrolling=False
+        )
+
+        st.divider()
+
+        # ----------------------------
+        # CAPTURA DE FACTURA
+        # ----------------------------
+
+        st.markdown("### Datos de la factura")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            folio = st.text_input(
+                "Folio de factura",
+                key="folio_nueva_factura",
+                placeholder="Ej. F12345"
             )
 
-            proveedor_row = df_proveedores_activos[
-                df_proveedores_activos["nombre"] == proveedor
-            ].iloc[0]
-
-            proveedor_id = int(proveedor_row["proveedor_id"])
-            dias_credito_default = int(proveedor_row["dias_credito"])
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-
-                folio = st.text_input(
-                    "Folio de factura"
-                )
-
-                fecha_factura = st.date_input(
-                    "Fecha de factura",
-                    value=date.today()
-                )
-
-                dias_credito = st.number_input(
-                    "Días de crédito",
-                    min_value=0,
-                    max_value=365,
-                    value=dias_credito_default
-                )
-
-            with col2:
-
-                monto = st.number_input(
-                    "Monto",
-                    min_value=0.0,
-                    step=100.0,
-                    format="%.2f"
-                )
-
-                estatus = st.selectbox(
-                    "Estatus",
-                    ["PENDIENTE", "PAGADA", "CANCELADA"]
-                )
-
-                fecha_vencimiento = fecha_factura + timedelta(
-                    days=int(dias_credito)
-                )
-
-                st.info(
-                    f"Fecha de vencimiento calculada: {fecha_vencimiento.strftime('%d/%m/%Y')}"
-                )
-
-            observaciones = st.text_area(
-                "Observaciones"
+            fecha_factura = st.date_input(
+                "Fecha de factura",
+                value=date.today(),
+                key="fecha_factura_nueva"
             )
 
-            guardar = st.form_submit_button(
-                "Guardar factura"
+            dias_credito = st.number_input(
+                "Días de crédito",
+                min_value=0,
+                max_value=365,
+                value=dias_credito_default,
+                key=f"dias_credito_nueva_factura_{proveedor_id}"
             )
 
-        if guardar:
+        with col2:
+
+            monto = st.number_input(
+                "Monto",
+                min_value=0.0,
+                step=100.0,
+                format="%.2f",
+                key="monto_nueva_factura"
+            )
+
+            estatus = st.selectbox(
+                "Estatus inicial",
+                ["PENDIENTE", "PAGADA"],
+                key="estatus_nueva_factura"
+            )
+
+            modificar_vencimiento = st.checkbox(
+                "Modificar vencimiento manualmente",
+                value=False,
+                key="modificar_vencimiento_nueva_factura"
+            )
+
+        fecha_vencimiento_calculada = (
+            fecha_factura +
+            timedelta(days=int(dias_credito))
+        )
+
+        if modificar_vencimiento:
+
+            fecha_vencimiento = st.date_input(
+                "Fecha de vencimiento",
+                value=fecha_vencimiento_calculada,
+                key="fecha_vencimiento_manual_nueva_factura"
+            )
+
+        else:
+
+            fecha_vencimiento = fecha_vencimiento_calculada
+
+            st.info(
+                f"Fecha de vencimiento calculada automáticamente: {fecha_vencimiento.strftime('%d/%m/%Y')}"
+            )
+
+        observaciones = st.text_area(
+            "Observaciones",
+            height=90,
+            key="observaciones_nueva_factura"
+        )
+
+        # ----------------------------
+        # RESUMEN VISUAL ANTES DE GUARDAR
+        # ----------------------------
+
+        st.markdown("### Resumen antes de guardar")
+
+        dias_restantes = (fecha_vencimiento - date.today()).days
+
+        if estatus == "PAGADA":
+
+            texto_estado = "PAGADA"
+            detalle_estado = "Factura registrada como pagada"
+            fondo_estado = "#e0f2fe"
+            color_estado = "#075985"
+            borde_estado = "#7dd3fc"
+
+        elif dias_restantes < 0:
+
+            texto_estado = "VENCIDA"
+            detalle_estado = f"Venció hace {abs(dias_restantes)} días"
+            fondo_estado = "#fee2e2"
+            color_estado = "#991b1b"
+            borde_estado = "#fca5a5"
+
+        elif dias_restantes == 0:
+
+            texto_estado = "VENCE HOY"
+            detalle_estado = "Debe pagarse hoy"
+            fondo_estado = "#ffedd5"
+            color_estado = "#9a3412"
+            borde_estado = "#fdba74"
+
+        elif dias_restantes <= 7:
+
+            texto_estado = "POR VENCER"
+            detalle_estado = f"Faltan {dias_restantes} días"
+            fondo_estado = "#ffedd5"
+            color_estado = "#9a3412"
+            borde_estado = "#fdba74"
+
+        else:
+
+            texto_estado = "EN TIEMPO"
+            detalle_estado = f"Faltan {dias_restantes} días"
+            fondo_estado = "#dcfce7"
+            color_estado = "#166534"
+            borde_estado = "#86efac"
+
+        folio_resumen = folio.strip() if folio.strip() else "Sin capturar"
+
+        resumen_html = f"""
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                font-family: Arial, sans-serif;
+            }}
+
+            .card-resumen {{
+                border: 1px solid #e5e7eb;
+                border-radius: 16px;
+                padding: 20px 22px;
+                background: #ffffff;
+                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+            }}
+
+            .resumen-contenido {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 16px;
+                flex-wrap: wrap;
+            }}
+
+            .label {{
+                font-size: 13px;
+                color: #64748b;
+                font-weight: 600;
+                margin-bottom: 5px;
+            }}
+
+            .titulo {{
+                font-size: 21px;
+                color: #111827;
+                font-weight: 800;
+            }}
+
+            .detalle {{
+                font-size: 14px;
+                color: #475569;
+                margin-top: 5px;
+                line-height: 1.6;
+            }}
+
+            .lado-derecho {{
+                text-align: right;
+            }}
+
+            .badge-estado {{
+                display: inline-block;
+                background: {fondo_estado};
+                color: {color_estado};
+                border: 1px solid {borde_estado};
+                border-radius: 999px;
+                padding: 8px 14px;
+                font-size: 12px;
+                font-weight: 800;
+                letter-spacing: 0.3px;
+            }}
+
+            .monto {{
+                font-size: 25px;
+                color: #111827;
+                font-weight: 800;
+                margin-top: 10px;
+            }}
+
+            .detalle-estado {{
+                font-size: 13px;
+                color: #64748b;
+                margin-top: 6px;
+            }}
+        </style>
+
+        <div class="card-resumen">
+            <div class="resumen-contenido">
+                <div>
+                    <div class="label">Factura por registrar</div>
+                    <div class="titulo">{escape(proveedor_nombre)}</div>
+                    <div class="detalle">
+                        Folio: <strong>{escape(folio_resumen)}</strong><br>
+                        Fecha factura: <strong>{fecha_factura.strftime('%d/%m/%Y')}</strong><br>
+                        Vencimiento: <strong>{fecha_vencimiento.strftime('%d/%m/%Y')}</strong><br>
+                        Crédito: <strong>{int(dias_credito)} días</strong>
+                    </div>
+                </div>
+
+                <div class="lado-derecho">
+                    <span class="badge-estado">{texto_estado}</span>
+                    <div class="detalle-estado">{detalle_estado}</div>
+                    <div class="monto">${float(monto):,.2f}</div>
+                </div>
+            </div>
+        </div>
+        """
+
+        components.html(
+            resumen_html,
+            height=210,
+            scrolling=False
+        )
+
+        st.divider()
+
+        # ----------------------------
+        # GUARDAR FACTURA
+        # ----------------------------
+
+        if st.button(
+            "Guardar factura",
+            type="primary",
+            use_container_width=True,
+            key="btn_guardar_nueva_factura"
+        ):
 
             if folio.strip() == "":
 
@@ -2052,13 +2351,13 @@ with tab2:
                 WHERE proveedor_id = %s
                 AND UPPER(folio) = UPPER(%s)
             """, (
-                proveedor_id,
+                int(proveedor_id),
                 folio.strip()
             ))
 
-            existe = cursor.fetchone()[0]
+            existe_factura = cursor.fetchone()[0]
 
-            if existe > 0:
+            if existe_factura > 0:
 
                 st.error("Ya existe una factura con ese folio para este proveedor.")
                 st.stop()
@@ -2089,12 +2388,12 @@ with tab2:
                         %s
                     )
                 """, (
-                    proveedor_id,
+                    int(proveedor_id),
                     folio.strip(),
                     fecha_factura,
                     int(dias_credito),
                     fecha_vencimiento,
-                    monto,
+                    float(monto),
                     estatus,
                     observaciones.strip()
                 ))
@@ -2104,10 +2403,14 @@ with tab2:
                 registrar_log(
                     st.session_state["usuario"],
                     "ALTA_FACTURA",
-                    f"Registró la factura {folio.strip()} del proveedor {proveedor}"
+                    f"Registró la factura {folio.strip()} del proveedor {proveedor_nombre}"
                 )
 
                 st.success("Factura registrada correctamente.")
+
+                st.session_state.pop("folio_nueva_factura", None)
+                st.session_state.pop("monto_nueva_factura", None)
+                st.session_state.pop("observaciones_nueva_factura", None)
 
                 st.rerun()
 
