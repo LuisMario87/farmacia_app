@@ -165,7 +165,138 @@ with tab1:
         )
 
     ######################################################
-    df_facturas = pd.read_sql("""
+        # ----------------------------
+    # CONSULTA OPTIMIZADA DE FACTURAS
+    # ----------------------------
+
+    meses_map = {
+        "Enero": 1,
+        "Febrero": 2,
+        "Marzo": 3,
+        "Abril": 4,
+        "Mayo": 5,
+        "Junio": 6,
+        "Julio": 7,
+        "Agosto": 8,
+        "Septiembre": 9,
+        "Octubre": 10,
+        "Noviembre": 11,
+        "Diciembre": 12
+    }
+
+    condiciones_sql = []
+    parametros_sql = []
+
+    if filtro_proveedor_sql != "Todos":
+
+        condiciones_sql.append("p.nombre = %s")
+        parametros_sql.append(filtro_proveedor_sql)
+
+    if filtro_estatus_sql != "Todos":
+
+        condiciones_sql.append("f.estatus = %s")
+        parametros_sql.append(filtro_estatus_sql)
+
+    if filtro_anio_sql != "Todos":
+
+        condiciones_sql.append("EXTRACT(YEAR FROM f.fecha_factura)::INT = %s")
+        parametros_sql.append(int(filtro_anio_sql))
+
+    if filtro_mes_sql != "Todos":
+
+        condiciones_sql.append("EXTRACT(MONTH FROM f.fecha_factura)::INT = %s")
+        parametros_sql.append(meses_map[filtro_mes_sql])
+
+    if buscar_folio_sql.strip():
+
+        condiciones_sql.append("f.folio ILIKE %s")
+        parametros_sql.append(f"%{buscar_folio_sql.strip()}%")
+
+    if filtro_vencimiento_sql == "Vencidas":
+
+        condiciones_sql.append("f.estatus = 'PENDIENTE'")
+        condiciones_sql.append("f.fecha_vencimiento < CURRENT_DATE")
+
+    elif filtro_vencimiento_sql == "Vencen en 7 días":
+
+        condiciones_sql.append("f.estatus = 'PENDIENTE'")
+        condiciones_sql.append("""
+            f.fecha_vencimiento >= CURRENT_DATE
+            AND f.fecha_vencimiento <= CURRENT_DATE + INTERVAL '7 days'
+        """)
+
+    elif filtro_vencimiento_sql == "En tiempo":
+
+        condiciones_sql.append("f.estatus = 'PENDIENTE'")
+        condiciones_sql.append("f.fecha_vencimiento > CURRENT_DATE + INTERVAL '7 days'")
+
+    if condiciones_sql:
+
+        where_sql = "WHERE " + " AND ".join(condiciones_sql)
+
+    else:
+
+        where_sql = ""
+
+    # ----------------------------
+    # CONTAR REGISTROS FILTRADOS
+    # ----------------------------
+
+    query_total_facturas = f"""
+        SELECT COUNT(*) AS total
+        FROM facturas f
+        LEFT JOIN proveedores p
+            ON f.proveedor_id = p.proveedor_id
+        {where_sql}
+    """
+
+    total_registros = pd.read_sql(
+        query_total_facturas,
+        conn,
+        params=parametros_sql
+    )["total"].iloc[0]
+
+    total_registros = int(total_registros)
+
+    total_paginas = max(
+        1,
+        (total_registros + int(registros_por_pagina) - 1) // int(registros_por_pagina)
+    )
+
+    col1, col2, col3 = st.columns([1, 1, 2])
+
+    with col1:
+
+        pagina_actual = st.number_input(
+            "Página",
+            min_value=1,
+            max_value=total_paginas,
+            value=1,
+            step=1,
+            key="pagina_facturas_tab1"
+        )
+
+    with col2:
+
+        st.metric(
+            "Total resultados",
+            total_registros
+        )
+
+    with col3:
+
+        st.caption(
+            f"Página {pagina_actual} de {total_paginas}. "
+            f"Mostrando máximo {registros_por_pagina} facturas por página."
+        )
+
+    offset = (int(pagina_actual) - 1) * int(registros_por_pagina)
+
+    # ----------------------------
+    # CONSULTA PAGINADA
+    # ----------------------------
+
+    query_facturas = f"""
         SELECT
             f.factura_id,
             p.nombre AS proveedor,
@@ -175,14 +306,40 @@ with tab1:
             f.fecha_vencimiento,
             f.monto,
             f.estatus,
-            f.observaciones
+            f.observaciones,
+            f.created_at
         FROM facturas f
         LEFT JOIN proveedores p
             ON f.proveedor_id = p.proveedor_id
+        {where_sql}
         ORDER BY
-            f.fecha_vencimiento ASC,
+            CASE
+                WHEN f.estatus = 'PENDIENTE' THEN 0
+                WHEN f.estatus = 'PAGADA' THEN 1
+                WHEN f.estatus = 'CANCELADA' THEN 2
+                ELSE 3
+            END,
+            f.fecha_vencimiento ASC NULLS LAST,
             f.created_at DESC
-    """, conn)
+        LIMIT %s
+        OFFSET %s
+    """
+
+    parametros_facturas = parametros_sql.copy()
+    parametros_facturas.extend([
+        int(registros_por_pagina),
+        int(offset)
+    ])
+
+    df_facturas = pd.read_sql(
+        query_facturas,
+        conn,
+        params=parametros_facturas
+    )
+
+
+    df_filtrado = df_facturas.copy()
+    #############
 
     if df_facturas.empty:
 
@@ -238,81 +395,7 @@ with tab1:
             axis=1
         )
 
-        # ----------------------------
-        # APLICAR FILTROS DE BÚSQUEDA
-        # ----------------------------
-
-        df_filtrado = df_facturas.copy()
-
-        if filtro_proveedor_sql != "Todos":
-
-            df_filtrado = df_filtrado[
-                df_filtrado["proveedor"] == filtro_proveedor_sql
-            ]
-
-        if filtro_estatus_sql != "Todos":
-
-            df_filtrado = df_filtrado[
-                df_filtrado["estatus"] == filtro_estatus_sql
-            ]
-
-        if filtro_anio_sql != "Todos":
-
-            df_filtrado = df_filtrado[
-                pd.to_datetime(df_filtrado["fecha_factura"]).dt.year == int(filtro_anio_sql)
-            ]
-
-        meses_map = {
-            "Enero": 1,
-            "Febrero": 2,
-            "Marzo": 3,
-            "Abril": 4,
-            "Mayo": 5,
-            "Junio": 6,
-            "Julio": 7,
-            "Agosto": 8,
-            "Septiembre": 9,
-            "Octubre": 10,
-            "Noviembre": 11,
-            "Diciembre": 12
-        }
-
-        if filtro_mes_sql != "Todos":
-
-            df_filtrado = df_filtrado[
-                pd.to_datetime(df_filtrado["fecha_factura"]).dt.month == meses_map[filtro_mes_sql]
-            ]
-
-        if filtro_vencimiento_sql == "Vencidas":
-
-            df_filtrado = df_filtrado[
-                (df_filtrado["estatus"] == "PENDIENTE") &
-                (df_filtrado["dias_restantes"] < 0)
-            ]
-
-        elif filtro_vencimiento_sql == "Vencen en 7 días":
-
-            df_filtrado = df_filtrado[
-                (df_filtrado["estatus"] == "PENDIENTE") &
-                (df_filtrado["dias_restantes"] >= 0) &
-                (df_filtrado["dias_restantes"] <= 7)
-            ]
-
-        elif filtro_vencimiento_sql == "En tiempo":
-
-            df_filtrado = df_filtrado[
-                (df_filtrado["estatus"] == "PENDIENTE") &
-                (df_filtrado["dias_restantes"] > 7)
-            ]
-
-        if buscar_folio_sql.strip():
-
-            df_filtrado = df_filtrado[
-                df_filtrado["folio"]
-                .astype(str)
-                .str.contains(buscar_folio_sql.strip(), case=False, na=False)
-            ]
-
+        
         # ----------------------------
         # KPIS
         # ----------------------------
