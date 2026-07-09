@@ -52,6 +52,119 @@ with tab1:
 
     st.subheader("Panel de facturas")
 
+        # ----------------------------
+    # FILTROS DE CARGA
+    # ----------------------------
+
+    st.markdown("### Búsqueda de facturas")
+
+    df_proveedores_filtro = pd.read_sql("""
+        SELECT DISTINCT
+            p.nombre AS proveedor
+        FROM facturas f
+        LEFT JOIN proveedores p
+            ON f.proveedor_id = p.proveedor_id
+        WHERE p.nombre IS NOT NULL
+        ORDER BY p.nombre ASC
+    """, conn)
+
+    df_anios_filtro = pd.read_sql("""
+        SELECT DISTINCT
+            EXTRACT(YEAR FROM fecha_factura)::INT AS anio
+        FROM facturas
+        WHERE fecha_factura IS NOT NULL
+        ORDER BY anio DESC
+    """, conn)
+
+    proveedores_filtro = ["Todos"] + df_proveedores_filtro["proveedor"].dropna().tolist()
+    anios_filtro = ["Todos"] + df_anios_filtro["anio"].dropna().astype(int).tolist()
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+
+        filtro_proveedor_sql = st.selectbox(
+            "Proveedor",
+            proveedores_filtro,
+            key="filtro_proveedor_sql_tab1"
+        )
+
+    with col2:
+
+        filtro_estatus_sql = st.selectbox(
+            "Estatus",
+            [
+                "PENDIENTE",
+                "Todos",
+                "PAGADA",
+                "CANCELADA"
+            ],
+            key="filtro_estatus_sql_tab1"
+        )
+
+    with col3:
+
+        filtro_anio_sql = st.selectbox(
+            "Año",
+            anios_filtro,
+            key="filtro_anio_sql_tab1"
+        )
+
+    with col4:
+
+        filtro_mes_sql = st.selectbox(
+            "Mes",
+            [
+                "Todos",
+                "Enero",
+                "Febrero",
+                "Marzo",
+                "Abril",
+                "Mayo",
+                "Junio",
+                "Julio",
+                "Agosto",
+                "Septiembre",
+                "Octubre",
+                "Noviembre",
+                "Diciembre"
+            ],
+            key="filtro_mes_sql_tab1"
+        )
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+
+        filtro_vencimiento_sql = st.selectbox(
+            "Vencimiento",
+            [
+                "Todos",
+                "Vencidas",
+                "Vencen en 7 días",
+                "En tiempo"
+            ],
+            key="filtro_vencimiento_sql_tab1"
+        )
+
+    with col2:
+
+        buscar_folio_sql = st.text_input(
+            "Buscar folio",
+            placeholder="Ej. F12345",
+            key="buscar_folio_sql_tab1"
+        )
+
+    with col3:
+
+        registros_por_pagina = st.selectbox(
+            "Registros por página",
+            [10, 25, 50],
+            index=1,
+            key="registros_por_pagina_tab1"
+        )
+
+    ######################################################
     df_facturas = pd.read_sql("""
         SELECT
             f.factura_id,
