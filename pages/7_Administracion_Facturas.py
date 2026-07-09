@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import streamlit.components.v1 as components
+import plotly.express as px
+
 from datetime import date, timedelta
 from html import escape
 
@@ -1606,6 +1608,448 @@ with tab2:
 
                 st.error(e)
 
+# ----------------------------
+# ESTADÍSTICAS DE FACTURAS
+# ----------------------------
+
+with tab4:
+
+    st.subheader("Estadísticas de facturas")
+
+    df_estadisticas = pd.read_sql("""
+        SELECT
+            f.factura_id,
+            p.nombre AS proveedor,
+            f.folio,
+            f.fecha_factura,
+            f.fecha_vencimiento,
+            f.dias_credito,
+            f.monto,
+            f.estatus,
+            f.observaciones
+        FROM facturas f
+        LEFT JOIN proveedores p
+            ON f.proveedor_id = p.proveedor_id
+        ORDER BY f.fecha_factura DESC
+    """, conn)
+
+    if df_estadisticas.empty:
+
+        st.info("Todavía no hay facturas registradas para generar estadísticas.")
+
+    else:
+
+        df_estadisticas["fecha_factura"] = pd.to_datetime(
+            df_estadisticas["fecha_factura"]
+        )
+
+        df_estadisticas["fecha_vencimiento"] = pd.to_datetime(
+            df_estadisticas["fecha_vencimiento"]
+        )
+
+        hoy = pd.Timestamp(date.today())
+
+        df_estadisticas["dias_restantes"] = (
+            df_estadisticas["fecha_vencimiento"] - hoy
+        ).dt.days
+
+        df_estadisticas["mes"] = (
+            df_estadisticas["fecha_factura"]
+            .dt.to_period("M")
+            .astype(str)
+        )
+
+        df_estadisticas["monto"] = df_estadisticas["monto"].astype(float)
+
+        # ----------------------------
+        # FILTROS
+        # ----------------------------
+
+        st.markdown("### Filtros")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+
+            proveedores = ["Todos"] + sorted(
+                df_estadisticas["proveedor"].dropna().unique().tolist()
+            )
+
+            filtro_proveedor_est = st.selectbox(
+                "Proveedor",
+                proveedores,
+                key="filtro_proveedor_estadisticas"
+            )
+
+        with col2:
+
+            estatus_est = st.selectbox(
+                "Estatus",
+                [
+                    "Todos",
+                    "PENDIENTE",
+                    "PAGADA",
+                    "CANCELADA"
+                ],
+                key="filtro_estatus_estadisticas"
+            )
+
+        with col3:
+
+            meses = ["Todos"] + sorted(
+                df_estadisticas["mes"].dropna().unique().tolist(),
+                reverse=True
+            )
+
+            filtro_mes_est = st.selectbox(
+                "Mes",
+                meses,
+                key="filtro_mes_estadisticas"
+            )
+
+        df_stats = df_estadisticas.copy()
+
+        if filtro_proveedor_est != "Todos":
+
+            df_stats = df_stats[
+                df_stats["proveedor"] == filtro_proveedor_est
+            ]
+
+        if estatus_est != "Todos":
+
+            df_stats = df_stats[
+                df_stats["estatus"] == estatus_est
+            ]
+
+        if filtro_mes_est != "Todos":
+
+            df_stats = df_stats[
+                df_stats["mes"] == filtro_mes_est
+            ]
+
+        if df_stats.empty:
+
+            st.warning("No hay información con los filtros seleccionados.")
+
+        else:
+
+            # ----------------------------
+            # KPIS PRINCIPALES
+            # ----------------------------
+
+            pendientes = df_stats[
+                df_stats["estatus"] == "PENDIENTE"
+            ]
+
+            pagadas = df_stats[
+                df_stats["estatus"] == "PAGADA"
+            ]
+
+            canceladas = df_stats[
+                df_stats["estatus"] == "CANCELADA"
+            ]
+
+            vencidas = df_stats[
+                (df_stats["estatus"] == "PENDIENTE") &
+                (df_stats["dias_restantes"] < 0)
+            ]
+
+            proximas = df_stats[
+                (df_stats["estatus"] == "PENDIENTE") &
+                (df_stats["dias_restantes"] >= 0) &
+                (df_stats["dias_restantes"] <= 7)
+            ]
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+
+                st.metric(
+                    "Saldo pendiente",
+                    f"${pendientes['monto'].sum():,.2f}"
+                )
+
+            with col2:
+
+                st.metric(
+                    "Facturas pendientes",
+                    len(pendientes)
+                )
+
+            with col3:
+
+                st.metric(
+                    "Facturas vencidas",
+                    len(vencidas)
+                )
+
+            with col4:
+
+                st.metric(
+                    "Vencen en 7 días",
+                    len(proximas)
+                )
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+
+                st.metric(
+                    "Monto vencido",
+                    f"${vencidas['monto'].sum():,.2f}"
+                )
+
+            with col2:
+
+                st.metric(
+                    "Monto pagado",
+                    f"${pagadas['monto'].sum():,.2f}"
+                )
+
+            with col3:
+
+                st.metric(
+                    "Facturas canceladas",
+                    len(canceladas)
+                )
+
+            with col4:
+
+                st.metric(
+                    "Total registrado",
+                    f"${df_stats['monto'].sum():,.2f}"
+                )
+
+            st.divider()
+
+            # ----------------------------
+            # GRÁFICAS
+            # ----------------------------
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                st.markdown("### Monto por estatus")
+
+                df_estatus = (
+                    df_stats
+                    .groupby("estatus", as_index=False)["monto"]
+                    .sum()
+                    .sort_values("monto", ascending=False)
+                )
+
+                fig_estatus = px.bar(
+                    df_estatus,
+                    x="estatus",
+                    y="monto",
+                    text_auto=".2s",
+                    title="Monto total por estatus"
+                )
+
+                fig_estatus.update_layout(
+                    xaxis_title="Estatus",
+                    yaxis_title="Monto",
+                    showlegend=False
+                )
+
+                st.plotly_chart(
+                    fig_estatus,
+                    use_container_width=True
+                )
+
+            with col2:
+
+                st.markdown("### Número de facturas por estatus")
+
+                df_conteo_estatus = (
+                    df_stats
+                    .groupby("estatus", as_index=False)["factura_id"]
+                    .count()
+                    .rename(columns={"factura_id": "cantidad"})
+                    .sort_values("cantidad", ascending=False)
+                )
+
+                fig_conteo = px.pie(
+                    df_conteo_estatus,
+                    names="estatus",
+                    values="cantidad",
+                    title="Distribución de facturas"
+                )
+
+                st.plotly_chart(
+                    fig_conteo,
+                    use_container_width=True
+                )
+
+            st.divider()
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                st.markdown("### Proveedores con mayor saldo pendiente")
+
+                df_pendiente_proveedor = (
+                    pendientes
+                    .groupby("proveedor", as_index=False)["monto"]
+                    .sum()
+                    .sort_values("monto", ascending=False)
+                    .head(10)
+                )
+
+                if df_pendiente_proveedor.empty:
+
+                    st.info("No hay saldo pendiente para graficar.")
+
+                else:
+
+                    fig_pendiente = px.bar(
+                        df_pendiente_proveedor,
+                        x="monto",
+                        y="proveedor",
+                        orientation="h",
+                        text_auto=".2s",
+                        title="Top proveedores por saldo pendiente"
+                    )
+
+                    fig_pendiente.update_layout(
+                        xaxis_title="Monto pendiente",
+                        yaxis_title="Proveedor",
+                        yaxis=dict(autorange="reversed")
+                    )
+
+                    st.plotly_chart(
+                        fig_pendiente,
+                        use_container_width=True
+                    )
+
+            with col2:
+
+                st.markdown("### Compras por proveedor")
+
+                df_compras_proveedor = (
+                    df_stats[df_stats["estatus"] != "CANCELADA"]
+                    .groupby("proveedor", as_index=False)["monto"]
+                    .sum()
+                    .sort_values("monto", ascending=False)
+                    .head(10)
+                )
+
+                if df_compras_proveedor.empty:
+
+                    st.info("No hay compras para graficar.")
+
+                else:
+
+                    fig_compras = px.bar(
+                        df_compras_proveedor,
+                        x="monto",
+                        y="proveedor",
+                        orientation="h",
+                        text_auto=".2s",
+                        title="Top proveedores por monto facturado"
+                    )
+
+                    fig_compras.update_layout(
+                        xaxis_title="Monto facturado",
+                        yaxis_title="Proveedor",
+                        yaxis=dict(autorange="reversed")
+                    )
+
+                    st.plotly_chart(
+                        fig_compras,
+                        use_container_width=True
+                    )
+
+            st.divider()
+
+            # ----------------------------
+            # TENDENCIA MENSUAL
+            # ----------------------------
+
+            st.markdown("### Monto facturado por mes")
+
+            df_mensual = (
+                df_stats[df_stats["estatus"] != "CANCELADA"]
+                .groupby("mes", as_index=False)["monto"]
+                .sum()
+                .sort_values("mes")
+            )
+
+            if df_mensual.empty:
+
+                st.info("No hay información mensual para graficar.")
+
+            else:
+
+                fig_mensual = px.line(
+                    df_mensual,
+                    x="mes",
+                    y="monto",
+                    markers=True,
+                    title="Evolución mensual del monto facturado"
+                )
+
+                fig_mensual.update_layout(
+                    xaxis_title="Mes",
+                    yaxis_title="Monto facturado"
+                )
+
+                st.plotly_chart(
+                    fig_mensual,
+                    use_container_width=True
+                )
+
+            st.divider()
+
+            # ----------------------------
+            # TABLA DE PRÓXIMOS VENCIMIENTOS
+            # ----------------------------
+
+            st.markdown("### Próximos vencimientos")
+
+            df_proximos = (
+                df_stats[
+                    (df_stats["estatus"] == "PENDIENTE") &
+                    (df_stats["dias_restantes"] >= 0)
+                ]
+                .sort_values("dias_restantes")
+                .head(10)
+            )
+
+            if df_proximos.empty:
+
+                st.info("No hay facturas próximas a vencer.")
+
+            else:
+
+                df_proximos_mostrar = df_proximos[[
+                    "proveedor",
+                    "folio",
+                    "fecha_vencimiento",
+                    "dias_restantes",
+                    "monto"
+                ]].copy()
+
+                df_proximos_mostrar["fecha_vencimiento"] = (
+                    df_proximos_mostrar["fecha_vencimiento"]
+                    .dt.strftime("%d/%m/%Y")
+                )
+
+                df_proximos_mostrar = df_proximos_mostrar.rename(columns={
+                    "proveedor": "Proveedor",
+                    "folio": "Folio",
+                    "fecha_vencimiento": "Fecha vencimiento",
+                    "dias_restantes": "Días restantes",
+                    "monto": "Monto"
+                })
+
+                st.dataframe(
+                    df_proximos_mostrar,
+                    use_container_width=True,
+                    hide_index=True
+                )
 # ===============================
 # SIDEBAR INFO
 # ===============================
