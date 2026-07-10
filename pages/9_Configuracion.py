@@ -19,7 +19,7 @@ st.set_page_config(
 # ===============================
 
 st.sidebar.success(
-    f"{st.session_state['usuario']['nombre']}\n"
+    f"👤 {st.session_state['usuario']['nombre']}\n"
     f"Rol: {st.session_state['usuario']['rol']}"
 )
 
