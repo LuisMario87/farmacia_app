@@ -56,7 +56,8 @@ st.title("📊 Dashboard Financiero")
 # ---------------------------------
 # SEGURIDAD
 # ---------------------------------
-
+if "usuario" not in st.session_state:
+    st.switch_page("streamlit_app.py")
 
 # ---------------------------------
 # CARGA DE DATOS
