@@ -6,12 +6,31 @@ import unicodedata
 
 from utils.conexionASupabase import get_connection
 from utils.logger import registrar_log
+from utils.permisos import validar_acceso_pagina
 
 
 st.set_page_config(
     page_title="Configuración",
     layout="wide"
 )
+
+# ===============================
+# SIDEBAR INFO
+# ===============================
+
+st.sidebar.success(
+    f"{st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+if st.sidebar.button(
+    "Cerrar sesión",
+    key="btn_cerrar_sesion_configuracion"
+):
+    st.session_state.clear()
+    st.switch_page("streamlit_app.py")
+
+
 
 # ===============================
 # SEGURIDAD
@@ -38,7 +57,7 @@ if rol_usuario not in roles_permitidos:
 
 conn = get_connection()
 cursor = conn.cursor()
-
+validar_acceso_pagina(conn, "configuracion")
 
 # ===============================
 # FUNCIONES AUXILIARES
@@ -1657,22 +1676,6 @@ with tab3:
                 f"Mostrando {len(df_mostrar)} de {total} registros filtrados."
             )
 
-
-# ===============================
-# SIDEBAR INFO
-# ===============================
-
-st.sidebar.success(
-    f"{st.session_state['usuario']['nombre']}\n"
-    f"Rol: {st.session_state['usuario']['rol']}"
-)
-
-if st.sidebar.button(
-    "Cerrar sesión",
-    key="btn_cerrar_sesion_configuracion"
-):
-    st.session_state.clear()
-    st.switch_page("streamlit_app.py")
 
 
 # ===============================

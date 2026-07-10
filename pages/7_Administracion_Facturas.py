@@ -8,6 +8,20 @@ from html import escape
 
 from utils.conexionASupabase import get_connection
 from utils.logger import registrar_log
+from utils.permisos import validar_acceso_pagina
+
+# ===============================
+# SIDEBAR INFO
+# ===============================
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+if st.sidebar.button("🚪 Cerrar sesión"):
+    st.session_state.clear()
+    st.switch_page("streamlit_app.py")
+
 
 
 # ===============================
@@ -36,7 +50,7 @@ st.title("🧾 Administración de Facturas")
 
 conn=get_connection()
 cursor=conn.cursor()
-
+validar_acceso_pagina(conn, "administracion_facturas")
 
 
 if "usuario" not in st.session_state:
@@ -3249,14 +3263,3 @@ with tab4:
                     use_container_width=True,
                     hide_index=True
                 )
-# ===============================
-# SIDEBAR INFO
-# ===============================
-st.sidebar.success(
-    f"👤 {st.session_state['usuario']['nombre']}\n"
-    f"Rol: {st.session_state['usuario']['rol']}"
-)
-
-if st.sidebar.button("🚪 Cerrar sesión"):
-    st.session_state.clear()
-    st.switch_page("streamlit_app.py")
