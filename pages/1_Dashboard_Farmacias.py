@@ -63,7 +63,7 @@ if "usuario" not in st.session_state:
 # CARGA DE DATOS
 # ---------------------------------
 conn = get_connection()
-
+validar_acceso_pagina(conn, "dashboard")
 df = pd.read_sql("""
 SELECT
     v.venta_id,
@@ -105,7 +105,7 @@ conn.close()
 #SEGURIDAD DE USUARIO
 #-------------------------------
 
-validar_acceso_pagina(conn, "dashboard")
+
 
 
 df["fecha"] = pd.to_datetime(df["fecha"])
