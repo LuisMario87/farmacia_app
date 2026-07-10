@@ -16,6 +16,21 @@ mes_actual = hoy.month
 from utils.conexionASupabase import get_connection
 from reports.reporte_financiero import generar_reporte_financiero
 
+
+
+# ---------------------------------
+# SIDEBAR
+# ---------------------------------
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+if st.sidebar.button(" Cerrar sesión"):
+    st.session_state.clear()
+    st.switch_page("streamlit_app.py")
+
+
 # ---------------------------------
 # TRADUCCIONES
 # ---------------------------------
