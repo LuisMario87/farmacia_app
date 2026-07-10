@@ -495,21 +495,6 @@ def validar_registros_faltantes(
     return df_faltantes
 
 
-# ==================================================
-# SIDEBAR
-# ==================================================
-
-st.sidebar.success(
-    f"{st.session_state['usuario']['nombre']}\n"
-    f"Rol: {st.session_state['usuario']['rol']}"
-)
-
-if st.sidebar.button(
-    "Cerrar sesión",
-    key="btn_cerrar_sesion_dashboard"
-):
-    st.session_state.clear()
-    st.switch_page("streamlit_app.py")
 
 
 # ==================================================
@@ -576,6 +561,22 @@ mes_sel = st.sidebar.selectbox(
     index=index_mes,
     key="dashboard_filtro_mes"
 )
+
+# ==================================================
+# SIDEBAR
+# ==================================================
+
+st.sidebar.success(
+    f"{st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+if st.sidebar.button(
+    "Cerrar sesión",
+    key="btn_cerrar_sesion_dashboard"
+):
+    st.session_state.clear()
+    st.switch_page("streamlit_app.py")
 
 
 # ==================================================
