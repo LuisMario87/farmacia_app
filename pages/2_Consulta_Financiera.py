@@ -8,7 +8,7 @@ from datetime import datetime
 hoy = datetime.today()
 anio_actual = hoy.year
 mes_actual = hoy.month
-
+from utils.permisos import validar_acceso_pagina
 from utils.conexionASupabase import get_connection
 from reports.pdf_gastos import generar_pdf_gastos
 from reports.pdf_resumen import generar_pdf_resumen_financiero
@@ -18,6 +18,21 @@ from reports.pdf_resumen import generar_pdf_resumen_financiero
 # ===============================
 st.set_page_config(page_title="Consulta Financiera", layout="wide")
 st.title("📄 Consulta Financiera")
+
+
+# ===============================
+# SIDEBAR INFO
+# ===============================
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+if st.sidebar.button("🚪 Cerrar sesión"):
+    st.session_state.clear()
+    st.switch_page("streamlit_app.py")
+
+
 
 # ===============================
 # SEGURIDAD
@@ -32,7 +47,7 @@ if st.session_state["usuario"]["rol"] != "admin":
 # CONEXIÓN
 # ===============================
 conn = get_connection()
-
+validar_acceso_pagina(conn, "consulta_financiera")
 df_ventas = pd.read_sql("""
 SELECT 
     v.venta_id,
@@ -589,14 +604,3 @@ with tab_consulta:
         )
 
     
-    # ===============================
-# SIDEBAR INFO
-# ===============================
-st.sidebar.success(
-    f"👤 {st.session_state['usuario']['nombre']}\n"
-    f"Rol: {st.session_state['usuario']['rol']}"
-)
-
-if st.sidebar.button("🚪 Cerrar sesión"):
-    st.session_state.clear()
-    st.switch_page("streamlit_app.py")
