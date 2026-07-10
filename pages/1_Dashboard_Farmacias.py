@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+
+from utils.permisos import validar_acceso_pagina
 from datetime import datetime, timedelta
 from calendar import monthrange
 # ---------------------------------
@@ -54,12 +56,7 @@ st.title("📊 Dashboard Financiero")
 # ---------------------------------
 # SEGURIDAD
 # ---------------------------------
-if "usuario" not in st.session_state:
-    st.switch_page("streamlit_app.py")
 
-if st.session_state["usuario"]["rol"] != "admin":
-    st.error("No tienes permisos para esta sección, Intenta navegar desde el menu lateral")
-    st.stop()
 
 # ---------------------------------
 # CARGA DE DATOS
@@ -101,6 +98,14 @@ ORDER BY g.fecha;
 """, conn)
 
 conn.close()
+
+
+#--------------------------------
+#SEGURIDAD DE USUARIO
+#-------------------------------
+
+validar_acceso_pagina(conn, "dashboard")
+
 
 df["fecha"] = pd.to_datetime(df["fecha"])
 df_gastos["fecha"] = pd.to_datetime(df_gastos["fecha"])
