@@ -218,13 +218,33 @@ def cargar_ventas(conn, farmacia_sel, fecha_inicio, fecha_fin):
             f.farmacia_id,
             f.nombre AS farmacia,
             f.estado AS estado_farmacia,
-            COALESCE(v.ventas_totales, 0) AS ventas_totales,
+
+            COALESCE(
+                v.ventas_totales,
+                0
+            ) AS ventas_totales,
+
+            COALESCE(
+                v.venta_tarjeta,
+                0
+            ) AS venta_tarjeta,
+
+            GREATEST(
+                COALESCE(v.ventas_totales, 0)
+                - COALESCE(v.venta_tarjeta, 0),
+                0
+            ) AS venta_efectivo,
+
             v.tipo_registro,
             v.fecha
+
         FROM ventas v
+
         JOIN farmacias f
             ON v.farmacia_id = f.farmacia_id
+
         {where_sql}
+
         ORDER BY v.fecha;
     """
 
@@ -238,6 +258,18 @@ def cargar_ventas(conn, farmacia_sel, fecha_inicio, fecha_fin):
         df["fecha"],
         errors="coerce"
     )
+
+    columnas_numericas = [
+        "ventas_totales",
+        "venta_efectivo",
+        "venta_tarjeta"
+    ]
+
+    for columna in columnas_numericas:
+        df[columna] = pd.to_numeric(
+            df[columna],
+            errors="coerce"
+        ).fillna(0)
 
     return df
 
@@ -356,21 +388,56 @@ def cargar_meses_disponibles(conn, anio_sel):
     return meses
 
 
-def crear_dataframe_rendimiento(df_ventas, df_gastos, df_farmacias):
-    ventas_farmacia = (
-        df_ventas
-        .groupby("farmacia", as_index=False)["ventas_totales"]
-        .sum()
-        if not df_ventas.empty
-        else pd.DataFrame(columns=["farmacia", "ventas_totales"])
-    )
+def crear_dataframe_rendimiento(
+    df_ventas,
+    df_gastos,
+    df_farmacias
+):
+    if not df_ventas.empty:
+
+        ventas_farmacia = (
+            df_ventas
+            .groupby(
+                "farmacia",
+                as_index=False
+            )
+            .agg(
+                ventas_totales=(
+                    "ventas_totales",
+                    "sum"
+                ),
+                venta_efectivo=(
+                    "venta_efectivo",
+                    "sum"
+                ),
+                venta_tarjeta=(
+                    "venta_tarjeta",
+                    "sum"
+                )
+            )
+        )
+
+    else:
+
+        ventas_farmacia = pd.DataFrame(columns=[
+            "farmacia",
+            "ventas_totales",
+            "venta_efectivo",
+            "venta_tarjeta"
+        ])
 
     gastos_farmacia = (
         df_gastos
-        .groupby("farmacia", as_index=False)["monto"]
+        .groupby(
+            "farmacia",
+            as_index=False
+        )["monto"]
         .sum()
         if not df_gastos.empty
-        else pd.DataFrame(columns=["farmacia", "monto"])
+        else pd.DataFrame(columns=[
+            "farmacia",
+            "monto"
+        ])
     )
 
     df_rendimiento = ventas_farmacia.merge(
@@ -379,28 +446,60 @@ def crear_dataframe_rendimiento(df_ventas, df_gastos, df_farmacias):
         how="outer"
     )
 
-    df_rendimiento["ventas_totales"] = df_rendimiento["ventas_totales"].fillna(0)
-    df_rendimiento["monto"] = df_rendimiento["monto"].fillna(0)
+    columnas_numericas = [
+        "ventas_totales",
+        "venta_efectivo",
+        "venta_tarjeta",
+        "monto"
+    ]
+
+    for columna in columnas_numericas:
+
+        if columna not in df_rendimiento.columns:
+            df_rendimiento[columna] = 0
+
+        df_rendimiento[columna] = (
+            df_rendimiento[columna]
+            .fillna(0)
+        )
+
     df_rendimiento["utilidad"] = (
-        df_rendimiento["ventas_totales"] -
-        df_rendimiento["monto"]
+        df_rendimiento["ventas_totales"]
+        - df_rendimiento["monto"]
     )
 
     df_rendimiento["margen"] = df_rendimiento.apply(
         lambda row: (
-            row["utilidad"] / row["ventas_totales"] * 100
+            row["utilidad"]
+            / row["ventas_totales"]
+            * 100
             if row["ventas_totales"] > 0
             else 0
         ),
         axis=1
     )
 
-    df_estados = df_farmacias[["nombre", "estado"]].rename(
-        columns={
-            "nombre": "farmacia",
-            "estado": "estado"
-        }
+    df_rendimiento["porcentaje_tarjeta"] = (
+        df_rendimiento.apply(
+            lambda row: (
+                row["venta_tarjeta"]
+                / row["ventas_totales"]
+                * 100
+                if row["ventas_totales"] > 0
+                else 0
+            ),
+            axis=1
+        )
     )
+
+    df_estados = df_farmacias[
+        [
+            "nombre",
+            "estado"
+        ]
+    ].rename(columns={
+        "nombre": "farmacia"
+    })
 
     df_rendimiento = df_rendimiento.merge(
         df_estados,
@@ -567,7 +666,7 @@ mes_sel = st.sidebar.selectbox(
 # ==================================================
 
 st.sidebar.success(
-    f"{st.session_state['usuario']['nombre']}\n"
+    f"👤 {st.session_state['usuario']['nombre']}\n"
     f"Rol: {st.session_state['usuario']['rol']}"
 )
 
@@ -658,12 +757,49 @@ if df_ventas.empty and df_gastos.empty:
 # ==================================================
 
 ventas_total = df_ventas["ventas_totales"].sum()
+
+ventas_efectivo_total = (
+    df_ventas["venta_efectivo"].sum()
+)
+
+ventas_tarjeta_total = (
+    df_ventas["venta_tarjeta"].sum()
+)
+
 gastos_total = df_gastos["monto"].sum()
+
 utilidad = ventas_total - gastos_total
-margen = (utilidad / ventas_total * 100) if ventas_total > 0 else 0
+
+margen = (
+    utilidad / ventas_total * 100
+    if ventas_total > 0
+    else 0
+)
+
+porcentaje_tarjeta = (
+    ventas_tarjeta_total / ventas_total * 100
+    if ventas_total > 0
+    else 0
+)
+
+# ----------------------------------
+# PERIODO ANTERIOR
+# ----------------------------------
 
 ventas_ant = (
     df_ventas_ant["ventas_totales"].sum()
+    if not df_ventas_ant.empty
+    else 0
+)
+
+ventas_efectivo_ant = (
+    df_ventas_ant["venta_efectivo"].sum()
+    if not df_ventas_ant.empty
+    else 0
+)
+
+ventas_tarjeta_ant = (
+    df_ventas_ant["venta_tarjeta"].sum()
     if not df_ventas_ant.empty
     else 0
 )
@@ -682,47 +818,251 @@ margen_ant = (
     else 0
 )
 
+porcentaje_tarjeta_ant = (
+    ventas_tarjeta_ant / ventas_ant * 100
+    if ventas_ant > 0
+    else 0
+)
+
+delta_porcentaje_tarjeta = None
+
+if ventas_ant > 0:
+    diferencia_porcentaje = (
+        porcentaje_tarjeta
+        - porcentaje_tarjeta_ant
+    )
+
+    delta_porcentaje_tarjeta = (
+        f"{diferencia_porcentaje:+.1f} pp "
+        f"vs periodo anterior"
+    )
+
+# ----------------------------------
+# MÉTRICAS FINANCIERAS
+# ----------------------------------
+
 st.subheader("Resumen ejecutivo")
 
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
+
     st.metric(
         "Ventas totales",
         formato_moneda(ventas_total),
-        texto_delta(ventas_total, ventas_ant)
+        texto_delta(
+            ventas_total,
+            ventas_ant
+        )
     )
 
 with col2:
+
     st.metric(
         "Gastos totales",
         formato_moneda(gastos_total),
-        texto_delta(gastos_total, gastos_ant),
+        texto_delta(
+            gastos_total,
+            gastos_ant
+        ),
         delta_color="inverse"
     )
 
 with col3:
+
     st.metric(
         "Utilidad operativa",
         formato_moneda(utilidad),
-        texto_delta(utilidad, utilidad_ant)
+        texto_delta(
+            utilidad,
+            utilidad_ant
+        )
     )
 
 with col4:
+
     st.metric(
         "Margen",
         formato_porcentaje(margen),
-        texto_delta(margen, margen_ant)
+        texto_delta(
+            margen,
+            margen_ant
+        )
+    )
+
+# ----------------------------------
+# DESGLOSE DE VENTAS
+# ----------------------------------
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+
+    st.metric(
+        "Ventas en efectivo",
+        formato_moneda(
+            ventas_efectivo_total
+        ),
+        texto_delta(
+            ventas_efectivo_total,
+            ventas_efectivo_ant
+        )
+    )
+
+with col2:
+
+    st.metric(
+        "Ventas con tarjeta",
+        formato_moneda(
+            ventas_tarjeta_total
+        ),
+        texto_delta(
+            ventas_tarjeta_total,
+            ventas_tarjeta_ant
+        )
+    )
+
+with col3:
+
+    st.metric(
+        "Participación de tarjeta",
+        formato_porcentaje(
+            porcentaje_tarjeta
+        ),
+        delta_porcentaje_tarjeta,
+        delta_color="off"
     )
 
 if etiqueta_periodo_anterior:
-    st.caption(f"Comparativo contra: {etiqueta_periodo_anterior}")
+
+    st.caption(
+        f"Comparativo contra: "
+        f"{etiqueta_periodo_anterior}"
+    )
+
 else:
-    st.caption("Selecciona un año o mes específico para ver comparación contra periodo anterior.")
+
+    st.caption(
+        "Selecciona un año o mes específico "
+        "para ver comparación contra el periodo anterior."
+    )
+
+st.caption(
+    f"Comprobación de ventas: "
+    f"{formato_moneda(ventas_efectivo_total)} en efectivo "
+    f"+ {formato_moneda(ventas_tarjeta_total)} con tarjeta "
+    f"= {formato_moneda(ventas_total)} en ventas totales."
+)
+
+diferencia_desglose = (
+    ventas_total
+    - ventas_efectivo_total
+    - ventas_tarjeta_total
+)
+
+if abs(diferencia_desglose) > 0.01:
+
+    st.warning(
+        "Existe una diferencia entre las ventas totales "
+        "y el desglose por método de pago. "
+        f"Diferencia: {formato_moneda(diferencia_desglose)}"
+    )
 
 st.divider()
 
+# ==================================================
+# DESGLOSE POR MÉTODO DE PAGO
+# ==================================================
 
+st.subheader("Desglose de ventas por método de pago")
+
+df_metodos_pago = pd.DataFrame({
+    "Método de pago": [
+        "Efectivo",
+        "Tarjeta"
+    ],
+    "Monto": [
+        ventas_efectivo_total,
+        ventas_tarjeta_total
+    ]
+})
+
+df_metodos_pago["Porcentaje"] = (
+    df_metodos_pago["Monto"]
+    / ventas_total
+    * 100
+    if ventas_total > 0
+    else 0
+)
+
+if ventas_total <= 0:
+
+    st.info(
+        "No hay ventas registradas para mostrar "
+        "el desglose por método de pago."
+    )
+
+else:
+
+    col1, col2 = st.columns([
+        1,
+        2
+    ])
+
+    with col1:
+
+        st.dataframe(
+            df_metodos_pago,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Método de pago":
+                    st.column_config.TextColumn(
+                        "Método de pago"
+                    ),
+                "Monto":
+                    st.column_config.NumberColumn(
+                        "Monto",
+                        format="$%.2f"
+                    ),
+                "Porcentaje":
+                    st.column_config.NumberColumn(
+                        "Porcentaje",
+                        format="%.2f %%"
+                    )
+            }
+        )
+
+    with col2:
+
+        fig_metodos_pago = px.pie(
+            df_metodos_pago,
+            names="Método de pago",
+            values="Monto",
+            hole=0.45,
+            title=(
+                "Distribución de ventas "
+                "por método de pago"
+            )
+        )
+
+        fig_metodos_pago.update_traces(
+            textposition="inside",
+            textinfo="percent+label",
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Monto: $%{value:,.2f}<br>"
+                "Participación: %{percent}"
+                "<extra></extra>"
+            )
+        )
+
+        st.plotly_chart(
+            fig_metodos_pago,
+            use_container_width=True
+        )
+
+st.divider()
 # ==================================================
 # 2. CALIDAD DE DATOS
 # ==================================================
@@ -767,6 +1107,26 @@ st.divider()
 
 st.subheader("Tendencia y proyección")
 
+metrica_tendencia = st.selectbox(
+    "Tipo de venta",
+    [
+        "Ventas totales",
+        "Ventas en efectivo",
+        "Ventas con tarjeta"
+    ],
+    key="dashboard_metrica_tendencia"
+)
+
+mapa_metricas = {
+    "Ventas totales": "ventas_totales",
+    "Ventas en efectivo": "venta_efectivo",
+    "Ventas con tarjeta": "venta_tarjeta"
+}
+
+columna_tendencia = mapa_metricas[
+    metrica_tendencia
+]
+
 tipo_visualizacion = st.selectbox(
     "Visualización de tendencia",
     [
@@ -809,7 +1169,7 @@ else:
 
         df_tendencia = (
             df_tendencia_base
-            .groupby(df_tendencia_base["fecha"].dt.date)["ventas_totales"]
+            .groupby(df_tendencia_base["fecha"].dt.date)[columna_tendencia]
             .sum()
             .reset_index()
         )
@@ -824,7 +1184,7 @@ else:
 
         df_tendencia = (
             df_tendencia_base
-            .groupby(df_tendencia_base["fecha"].dt.to_period("W"))["ventas_totales"]
+            .groupby(df_tendencia_base["fecha"].dt.to_period("W"))[columna_tendencia]
             .sum()
             .reset_index()
         )
@@ -846,7 +1206,7 @@ else:
 
         df_tendencia = (
             df_tendencia_base
-            .groupby(df_tendencia_base["fecha"].dt.to_period("M"))["ventas_totales"]
+            .groupby(df_tendencia_base["fecha"].dt.to_period("M"))[columna_tendencia]
             .sum()
             .reset_index()
         )
@@ -857,7 +1217,10 @@ else:
             + df_tendencia["fecha"].dt.strftime("%Y")
         )
 
-        titulo_tendencia = "Tendencia mensual de ventas"
+        titulo_tendencia = (
+            f"Tendencia {tipo_visualizacion.lower()} "
+            f"de {metrica_tendencia.lower()}"
+        )
 
     if df_tendencia.empty:
         st.info("No hay datos suficientes para la visualización seleccionada.")
@@ -866,13 +1229,17 @@ else:
         fig_tendencia = px.line(
             df_tendencia,
             x="Etiqueta",
-            y="ventas_totales",
+            y=columna_tendencia,
             markers=True,
             title=titulo_tendencia
         )
 
         fig_tendencia.update_traces(
-            hovertemplate="<b>%{x}</b><br>Ventas: $%{y:,.2f}<extra></extra>"
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                "Monto: $%{y:,.2f}"
+                "<extra></extra>"
+            )
         )
 
         st.plotly_chart(
@@ -1061,6 +1428,8 @@ else:
                 [
                     "farmacia",
                     "ventas_totales",
+                    "venta_efectivo",
+                    "venta_tarjeta",
                     "monto",
                     "utilidad",
                     "margen"
@@ -1070,6 +1439,8 @@ else:
             df_negativas = df_negativas.rename(columns={
                 "farmacia": "Farmacia",
                 "ventas_totales": "Ventas",
+                "venta_efectivo": "Efectivo",
+                "venta_tarjeta": "Tarjeta",
                 "monto": "Gastos",
                 "utilidad": "Utilidad",
                 "margen": "Margen %"
@@ -1085,30 +1456,46 @@ else:
 
     df_tabla_rendimiento = df_rendimiento.copy()
 
-    df_tabla_rendimiento["ventas_totales"] = df_tabla_rendimiento["ventas_totales"].map(
-        formato_moneda
+    columnas_moneda = [
+        "ventas_totales",
+        "venta_efectivo",
+        "venta_tarjeta",
+        "monto",
+        "utilidad"
+    ]
+
+    for columna in columnas_moneda:
+
+        df_tabla_rendimiento[columna] = (
+            df_tabla_rendimiento[columna]
+            .map(formato_moneda)
+        )
+
+    df_tabla_rendimiento["margen"] = (
+        df_tabla_rendimiento["margen"]
+        .map(formato_porcentaje)
     )
 
-    df_tabla_rendimiento["monto"] = df_tabla_rendimiento["monto"].map(
-        formato_moneda
+    df_tabla_rendimiento["porcentaje_tarjeta"] = (
+        df_tabla_rendimiento[
+            "porcentaje_tarjeta"
+        ]
+        .map(formato_porcentaje)
     )
 
-    df_tabla_rendimiento["utilidad"] = df_tabla_rendimiento["utilidad"].map(
-        formato_moneda
+    df_tabla_rendimiento = (
+        df_tabla_rendimiento.rename(columns={
+            "farmacia": "Farmacia",
+            "ventas_totales": "Ventas",
+            "venta_efectivo": "Efectivo",
+            "venta_tarjeta": "Tarjeta",
+            "porcentaje_tarjeta": "% Tarjeta",
+            "monto": "Gastos",
+            "utilidad": "Utilidad",
+            "margen": "Margen",
+            "estado": "Estado"
+        })
     )
-
-    df_tabla_rendimiento["margen"] = df_tabla_rendimiento["margen"].map(
-        formato_porcentaje
-    )
-
-    df_tabla_rendimiento = df_tabla_rendimiento.rename(columns={
-        "farmacia": "Farmacia",
-        "ventas_totales": "Ventas",
-        "monto": "Gastos",
-        "utilidad": "Utilidad",
-        "margen": "Margen",
-        "estado": "Estado"
-    })
 
     st.dataframe(
         df_tabla_rendimiento[
@@ -1116,6 +1503,9 @@ else:
                 "Farmacia",
                 "Estado",
                 "Ventas",
+                "Efectivo",
+                "Tarjeta",
+                "% Tarjeta",
                 "Gastos",
                 "Utilidad",
                 "Margen"
