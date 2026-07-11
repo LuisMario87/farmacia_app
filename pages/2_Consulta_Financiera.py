@@ -20,18 +20,6 @@ st.set_page_config(page_title="Consulta Financiera", layout="wide")
 st.title("📄 Consulta Financiera")
 
 
-# ===============================
-# SIDEBAR INFO
-# ===============================
-st.sidebar.success(
-    f"👤 {st.session_state['usuario']['nombre']}\n"
-    f"Rol: {st.session_state['usuario']['rol']}"
-)
-
-if st.sidebar.button("🚪 Cerrar sesión"):
-    st.session_state.clear()
-    st.switch_page("streamlit_app.py")
-
 
 
 # ===============================
@@ -169,6 +157,19 @@ mes_sel = st.sidebar.selectbox(
     meses,
     index=index_mes
 )
+
+# ===============================
+# SIDEBAR INFO
+# ===============================
+st.sidebar.success(
+    f"👤 {st.session_state['usuario']['nombre']}\n"
+    f"Rol: {st.session_state['usuario']['rol']}"
+)
+
+if st.sidebar.button("🚪 Cerrar sesión"):
+    st.session_state.clear()
+    st.switch_page("streamlit_app.py")
+
 
 
 # ===============================
